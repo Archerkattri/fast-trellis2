@@ -1,0 +1,38 @@
+fast-trellis2
+=============
+
+Copyright (c) 2026 Krishi Attri <krishiattriwork@gmail.com>
+https://github.com/Archerkattri
+Licensed under the MIT License (see LICENSE).
+
+This project is a faithful port of Fast-TRELLIS's training-free acceleration
+method onto microsoft/TRELLIS.2. It bundles and/or adapts code from the
+following MIT-licensed third-party projects. All credit for the original work
+belongs to their respective authors.
+
+-------------------------------------------------------------------------------
+microsoft/TRELLIS.2
+-------------------------------------------------------------------------------
+Copyright (c) Microsoft Corporation.
+Licensed under the MIT License.
+https://github.com/microsoft/TRELLIS.2
+https://huggingface.co/microsoft/TRELLIS.2-4B
+
+The base image-to-3D model, pipeline, samplers, sparse modules, renderers and
+representations under trellis2/ are from TRELLIS.2 and remain under Microsoft's
+copyright and the MIT License.
+
+-------------------------------------------------------------------------------
+Fast-TRELLIS (wlfeng0509/Fast-TRELLIS)
+-------------------------------------------------------------------------------
+Copyright (c) wlfeng0509.
+Licensed under the MIT License.
+https://github.com/wlfeng0509/Fast-TRELLIS
+
+The training-free acceleration method (TaylorSeer sparse-structure cache,
+SLaT easy delta-cache with learned-k skip, and token carving) is from
+Fast-TRELLIS. The util packages taylor_utils_ss/, faster_utils_slat/,
+token_slat/ and fft/, and the *_taylor / *_faster sampler classes in
+trellis2/pipelines/samplers/flow_euler.py, are a faithful port of that method
+to TRELLIS.2 (v1 -> v2). This repository replicates their contribution.
+-------------------------------------------------------------------------------
