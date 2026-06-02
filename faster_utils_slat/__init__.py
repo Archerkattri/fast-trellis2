@@ -1,5 +1,5 @@
 # Faithful port of Fast-TRELLIS's SLaT "easy" delta-cache + learned-k skip.
-# Source: wlfeng0509/Fast-TRELLIS (MIT). num_steps is now passed from the v2
+# Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT). num_steps is now passed from the v2
 # sampler (v2 uses a 12-step schedule, not v1's fixed 25) so the skip logic
 # tracks the actual step count.
 import torch.nn.functional as F

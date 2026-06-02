@@ -2,7 +2,7 @@
 
 # 🛠 fast-trellis2
 
-**[Fast-TRELLIS](https://github.com/wlfeng0509/Fast-TRELLIS)'s training-free acceleration, faithfully ported onto [TRELLIS.2](https://github.com/microsoft/TRELLIS).**
+**[Fast-TRELLIS](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS)'s training-free acceleration, faithfully ported onto [TRELLIS.2](https://github.com/microsoft/TRELLIS).**
 
 `TRELLIS.2-4B` · `1024_cascade` (mesh + texture) · training-free · single RTX 5090 · MIT
 
@@ -120,7 +120,7 @@ credited because this work reproduces their contributions:
 | | |
 |---|---|
 | **microsoft/TRELLIS.2** | the base image-to-3D model, pipeline, and decoders |
-| **Fast-TRELLIS** | [wlfeng0509/Fast-TRELLIS](https://github.com/wlfeng0509/Fast-TRELLIS) — the training-free acceleration this repo ports to v2 |
+| **Fast-TRELLIS** | [wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch)](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS) — the training-free acceleration this repo ports to v2 |
 
 MIT. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE). The port wiring © 2026 Krishi Attri; the
 acceleration design © the Fast-TRELLIS authors; the base model © Microsoft.
@@ -143,7 +143,7 @@ acceleration design © the Fast-TRELLIS authors; the base model © Microsoft.
 }
 @misc{fasttrellis,
   title  = {Fast-TRELLIS}, author = {wlfeng0509},
-  howpublished = {\url{https://github.com/wlfeng0509/Fast-TRELLIS}}
+  howpublished = {\url{https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS}}
 }
 ```
 </details>

@@ -1,5 +1,5 @@
 # Faithful port of Fast-TRELLIS's 3D high-frequency-energy scoring used to rank
-# voxels for SLaT token carving. Source: wlfeng0509/Fast-TRELLIS (MIT).
+# voxels for SLaT token carving. Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT).
 # On TRELLIS.2 this runs on the post-maxpool SS occupancy grid so per-voxel
 # scores align 1:1 with the pipeline's `coords`. Plotly visualisation is
 # opt-in (draw_spatial/draw_freq, off by default).

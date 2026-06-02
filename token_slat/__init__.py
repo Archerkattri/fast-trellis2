@@ -1,5 +1,5 @@
 # Faithful port of Fast-TRELLIS's SLaT token-carving (stability tracking +
-# token scheduling). Source: wlfeng0509/Fast-TRELLIS (MIT). On TRELLIS.2 the
+# token scheduling). Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT). On TRELLIS.2 the
 # per-token spatial scores come from the SS occupancy grid (see fft.fft3d) and
 # carving auto-disables on cascade/texture stages where coords are re-derived.
 from .selection import AdvancedStabilityTracker

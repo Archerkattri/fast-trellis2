@@ -1,5 +1,5 @@
 # Faithful port of Fast-TRELLIS's TaylorSeer sparse-structure (SS) cache.
-# Source: wlfeng0509/Fast-TRELLIS (MIT). Adapted to TRELLIS.2's SS sampler:
+# Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT). Adapted to TRELLIS.2's SS sampler:
 # the cache schedule (first_enhance/end_enhance/interval) is parameterised so
 # the sampler can scale v1's 25-step defaults to v2's shorter SS schedule.
 import math
