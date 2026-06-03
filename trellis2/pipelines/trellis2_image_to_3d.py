@@ -81,7 +81,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         }
         self._device = 'cpu'
         # Fast-TRELLIS acceleration toggle. When True, the SS sampler runs
-        # TaylorSeer and the SLaT samplers run the easy delta-cache (+ token
+        # TaylorSeer and the SLaT samplers run the easy delta-cache (with token
         # carving for the shape stage). Set the sampler names to the *_taylor /
         # *_faster classes in pipeline.json (or via from_pretrained) to use it.
         self.enable_faster = False
@@ -111,9 +111,10 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         pipeline.tex_slat_normalization = args['tex_slat_normalization']
 
         pipeline.image_cond_model = getattr(image_feature_extractor, args['image_cond_model']['name'])(**args['image_cond_model']['args'])
-        # rembg is only used by preprocess_image(); for pre-masked inputs
-        # (preprocess_image=False) it is never called, so tolerate a load
-        # failure (e.g. gated weights / transformers-version drift).
+        # rembg is only used by preprocess_image() for background removal. For
+        # pre-masked inputs (preprocess_image=False) it is never called, so the
+        # pipeline can load and run without it; rembg_model is left as None when
+        # its weights are unavailable.
         try:
             pipeline.rembg_model = getattr(rembg, args['rembg_model']['name'])(**args['rembg_model']['args'])
         except Exception as _rembg_exc:
@@ -164,14 +165,14 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         if has_alpha:
             output = input
         else:
-            # rembg is required to mask a background-bearing RGB input. If it was
-            # skipped at load (see from_pretrained), fail loudly rather than
-            # producing a silently-empty mask.
+            # rembg is required to mask a background-bearing RGB input. When it
+            # is unavailable (see from_pretrained), raise an explicit error
+            # rather than producing an empty mask.
             if self.rembg_model is None:
                 raise RuntimeError(
                     "preprocess_image() needs background removal but rembg_model "
-                    "failed to load. Pass a pre-masked RGBA image (and call run() "
-                    "with preprocess_image=False), or fix the rembg install."
+                    "is not available. Pass a pre-masked RGBA image (and call run() "
+                    "with preprocess_image=False), or ensure rembg is installed."
                 )
             input = input.convert('RGB')
             if self.low_vram:
@@ -273,7 +274,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         # align 1:1 with coords rows.
         occupancy = decoded.float()
         coords_value = get_coords_value(occupancy)
-        coords_scores, hfer_3d = process_and_visualize(
+        coords_scores = process_and_visualize(
             coords_value,
             output_dir="./visualization",
             filter_radius=8,

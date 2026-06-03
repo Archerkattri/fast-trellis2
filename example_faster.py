@@ -1,12 +1,11 @@
 """
 fast-trellis2 example: image -> 3D with Fast-TRELLIS acceleration enabled.
 
-This mirrors example.py but swaps the stock TRELLIS.2 samplers for the ported
-Fast-TRELLIS cache-accelerated samplers (TaylorSeer on the SS final velocity +
-easy delta-cache / token-carving on SLaT). ~2.4x faster end to end on RTX 5090,
-at a faithful-to-the-original geometry-quality tradeoff (see README).
+This follows example.py but uses the Fast-TRELLIS cache-accelerated samplers:
+TaylorSeer on the sparse-structure (SS) final velocity, plus the easy
+delta-cache with token carving on the structured-latent (SLaT) stages.
 
-Blackwell (sm_120) env, set before launch:
+Backend selection via environment variables, set before launch:
     SPARSE_CONV_BACKEND=spconv SPCONV_ALGO=native python example_faster.py
 """
 import os
@@ -32,7 +31,7 @@ envmap = EnvMap(torch.tensor(
 pipeline = Trellis2ImageTo3DPipeline.from_pretrained("microsoft/TRELLIS.2-4B")
 pipeline.cuda()
 
-# 3. Swap in the ported Fast-TRELLIS accelerated samplers.
+# 3. Select the Fast-TRELLIS accelerated samplers.
 #    SS stage -> TaylorSeer cache; shape/tex SLaT stages -> easy delta-cache
 #    (with token carving on the shape stage). enable_faster wires the
 #    coords_scores plumbing the carver needs.

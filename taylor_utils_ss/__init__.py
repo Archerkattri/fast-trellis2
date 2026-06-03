@@ -1,7 +1,10 @@
-# Faithful port of Fast-TRELLIS's TaylorSeer sparse-structure (SS) cache.
-# Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT). Adapted to TRELLIS.2's SS sampler:
-# the cache schedule (first_enhance/end_enhance/interval) is parameterised so
-# the sampler can scale v1's 25-step defaults to v2's shorter SS schedule.
+# Fast-TRELLIS TaylorSeer cache for sparse-structure (SS) sampling.
+#
+# Instead of running the full model at every diffusion step, this cache
+# approximates the predicted velocity at intermediate steps with a Taylor
+# expansion around the most recent full step, and periodically refreshes with a
+# full model pass. The cache schedule (first_enhance/end_enhance/interval) is
+# parameterised so the sampler can adapt it to the active SS step count.
 import math
 from typing import Dict
 
@@ -81,9 +84,3 @@ def taylor_formula(taylor_dic: Dict, current: Dict, prev_v: torch.Tensor = None,
     if prev_v is not None:
         result = beta * prev_v + (1.0 - beta) * result
     return result
-
-
-def taylor_cache_init(taylor_dic: Dict, current: Dict):
-    """Kept as a named hook so sampler code mirrors FastSAM3D's layout."""
-    if current["step"] == current["num_steps"] - 1:
-        pass

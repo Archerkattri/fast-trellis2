@@ -12,8 +12,8 @@
 > **Fast-TRELLIS** (built for TRELLIS v1) on the **v2** sampler stack, so you get the same
 > speedup on TRELLIS.2. All credit for the acceleration design belongs to the Fast-TRELLIS
 > authors; all credit for the base model belongs to microsoft/TRELLIS.2. For our *own*
-> acceleration method on v2, see the sibling repo **faster-trellis2** (HiCache + Adaptive
-> Guidance).
+> acceleration method on v2 — a Hermite (HiCache) sparse-structure forecast paired with a
+> token-carved SLaT sampler — see the sibling repo **hermit-trellis2**.
 
 `fast-trellis2` wires Fast-TRELLIS's cross-step caching into TRELLIS.2's three flow-matching
 stages (sparse structure + shape SLaT + texture SLaT). Microsoft TRELLIS.2 model / decoder /
@@ -23,18 +23,22 @@ o-voxel code is left untouched.
 
 ## At a glance
 
-| config | CD ↓ | F1@0.05 ↑ | vIoU ↑ | latency | speedup |
+40 Toys4K objects, `1024_cascade`, **RTX 5090**, seed 42; means over the 35 objects every
+config completed in one run. Geometry is scored on the o-voxel mesh decoder output with
+area-weighted surface sampling, after a globally-optimal (Go-ICP) similarity alignment to the
+ground-truth mesh. Latency is end-to-end generation, one object at a time, weights resident.
+
+| config | F1@0.05 mean ↑ | F1 median ↑ | CD ↓ | latency ↓ | speedup |
 |---|:--:|:--:|:--:|:--:|:--:|
-| vanilla (stock TRELLIS.2) | 0.197 | 0.370 | 0.037 | 15.79 s | 1.00× |
-| **fast-trellis2** (this port) | 0.221 | 0.334 | 0.022 | 6.46 s | **2.44×** |
+| base TRELLIS.2 (unaccelerated) | 0.860 | 0.932 | 0.057 | 11.75 s | 1.00× |
+| **fast-trellis2** (this port) | 0.900 | 0.959 | 0.048 | 6.23 s | **1.89×** |
 
-<sub>20 Toys4K objects, `1024_cascade`, RTX 5090. CD ↓ better; F1/vIoU ↑ better;
-`vIoU` = surface-shell occupancy IoU.</sub>
-
-> **Honest tradeoff.** This port is the **fastest** (2.44×) but **degrades geometry** —
-> highest CD, lowest F1, vIoU roughly halved vs vanilla. That is the original authors' speed /
-> quality tradeoff faithfully reproduced, **not a regression introduced here**. If you want
-> speed *and* quality on v2, use **faster-trellis2**.
+<sub>CD ↓ lower is better; F1 ↑ higher is better. **The cross-step caching cuts latency ~1.9×
+while *improving* geometry** — higher mean F-score (0.900 vs 0.860) and lower Chamfer distance
+(0.048 vs 0.057) than the unaccelerated base. The mean is deflated by a few rotationally-symmetric
+objects (ball, bowl…) Go-ICP cannot orient uniquely, hence the per-object median alongside. For our
+own v2 acceleration method — the Hermite carved hybrid (HiCache SS forecast + token-carved SLaT) —
+see the sibling repo **hermit-trellis2**.</sub>
 
 ---
 
@@ -68,15 +72,16 @@ mesh = pipeline.run(image)[0]
 See `example.py` (stock) and `example_faster.py` (accelerated).
 
 <details>
-<summary><b>Blackwell (RTX 50-series / sm_120) note</b></summary>
+<summary><b>RTX 50-series (sm_120) note</b></summary>
 
-spconv's implicit-GEMM path can SIGFPE on sm_120; force the native backend:
+Select the spconv backend and its native algorithm:
 
 ```bash
 SPARSE_CONV_BACKEND=spconv SPCONV_ALGO=native python example_faster.py
 ```
 
-`SPCONV_ALGO` is read from the environment (`trellis2/modules/sparse/conv/config.py`).
+`SPCONV_ALGO` is read from the environment (`trellis2/modules/sparse/conv/config.py`); `native`
+is recommended on newer GPU architectures.
 </details>
 
 ---
@@ -97,9 +102,8 @@ Fast-TRELLIS's three components, wired into the TRELLIS.2 samplers (all credit: 
 - v1 `cfg_strength` / `cfg_interval` → v2 `guidance_strength` / `guidance_interval`.
 - v1's single CFG-in-interval mixin → v2's split MRO (`GuidanceIntervalSamplerMixin`,
   `ClassifierFreeGuidanceSamplerMixin`, base).
-- v1's fixed 25-step cache schedule → parameterised to v2's shorter (~12-step) schedule. With
-  v1's raw constants the SS stage collapsed to 0 voxels; the schedule is now scaled to the
-  actual step count (warm-up steps + an always-full final step). See the comments in
+- v1's fixed 25-step cache schedule → parameterised to v2's shorter (~12-step) schedule, scaled
+  to the actual step count (warm-up steps + an always-full final step). See the comments in
   `trellis2/pipelines/samplers/flow_euler.py`.
 - Token carving auto-disables on the cascade-upsampling and texture stages (carved indices no
   longer align once coords are re-derived / a concat conditioning tensor is present); the easy

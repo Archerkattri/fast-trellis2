@@ -210,23 +210,20 @@ class FlowEulerGuidanceIntervalSampler(GuidanceIntervalSamplerMixin, ClassifierF
 
 
 # ---------------------------------------------------------------------------
-# Fast-TRELLIS acceleration, ported to TRELLIS.2.
+# Fast-TRELLIS cache-accelerated Euler samplers.
 #
-# Two cache-accelerated Euler samplers replicated from the Fast-TRELLIS v1 fork
-# (trellis/pipelines/samplers/flow_euler.py, classes *_taylor / *_faster), with
-# the only changes required by TRELLIS.2's sampler API:
-#   * v1 cfg_strength/cfg_interval  ->  v2 guidance_strength/guidance_interval
-#   * v1 single-mixin CFG-in-interval  ->  v2 split MRO
-#       (GuidanceIntervalSamplerMixin, ClassifierFreeGuidanceSamplerMixin, base)
-#   * extra v2 kwargs (guidance_rescale, concat_cond, tqdm_desc) flow through.
-# The acceleration logic (TaylorSeer on the final velocity for SS; easy
-# delta-cache + learned-k skip + token carving for SLaT) is unchanged.
+# Two samplers reduce the number of full model evaluations per generation:
+#   * TaylorSeer on the final velocity for the sparse-structure (SS) stage.
+#   * Easy delta-cache with learned-k skip and token carving for the
+#     structured-latent (SLaT) stages.
+# Both integrate with the standard guidance interval and classifier-free
+# guidance mixins and accept the same conditioning keyword arguments as the
+# base sampler (e.g. guidance_rescale, concat_cond, tqdm_desc).
 # ---------------------------------------------------------------------------
 
 # Taylor sampler (sparse structure).
 from taylor_utils_ss import (
     derivative_approximation as taylor_derivative_approximation,
-    taylor_cache_init,
     taylor_cal_type,
     taylor_formula,
     taylor_init,
@@ -262,16 +259,11 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         t_pairs = list((t_seq[i], t_seq[i + 1]) for i in range(steps))
         ret = edict({"samples": None, "pred_x_t": [], "pred_x_0": []})
 
-        # Fast-TRELLIS v1 tuned these for a 25-step SS schedule
-        # (interval=4, first_enhance=2, end_enhance=24 -> *last* step full).
-        # TRELLIS.2 runs far fewer SS steps (e.g. 12), so scale the cache
-        # schedule to the actual step count while preserving v1's intent:
-        #   * a few full model steps at the start (warm-up the cache),
+        # Derive the TaylorSeer cache schedule from the actual SS step count so
+        # it remains well-conditioned across both long and short schedules:
+        #   * a few full model steps at the start to warm up the cache,
         #   * the final step always a full pass (end_enhance = steps-1),
-        #   * a Taylor interval shrunk for short schedules.
-        # With the raw v1 constants on a 12-step schedule the sparse structure
-        # collapses to 0 active voxels; this generalization keeps it stable
-        # (12 steps: ~2.3k voxels vs ~3.0k for the un-cached pass).
+        #   * a Taylor interval that shrinks for short schedules.
         first_enhance = max(2, round(steps * 1.0 / 3.0)) if steps < 20 else 2
         end_enhance = max(first_enhance + 1, steps - 1)
         taylor_interval = 4 if steps >= 20 else 3
@@ -290,7 +282,17 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
 
         print("[taylor-ss] Activated steps:   ", self.current['activated_steps'])
         ret.samples = sample
+        # Release the cached SS velocity tensors held on the sampler instance so
+        # the pipeline's torch.cuda.empty_cache() can reclaim them between stages
+        # and runs.
+        self.free_cache()
         return ret
+
+    def free_cache(self):
+        """Drop CUDA tensors retained by the TaylorSeer SS cache after a run."""
+        self.cache_dic = None
+        self.current = None
+        self.prev_v = None
 
     @torch.no_grad()
     def sample_once(
@@ -307,7 +309,6 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         self.current['stream'] = 'final'
         self.current['layer'] = 'final'
         self.current['module'] = 'final'
-        taylor_cache_init(self.cache_dic, self.current)
 
         if self.current['type'] == 'full':
             pred_x_0, pred_eps, pred_v = self._get_model_prediction(model, x_t, t, cond, **kwargs)
@@ -368,15 +369,15 @@ class FlowEulerSampler_faster(FlowEulerSampler):
         self.stability_tracker = AdvancedStabilityTracker()
         self.args = parse_token_args()
         self.coords_scores = None
+        self.coords_raw = None
+        self.cache_dic = None
+        self.current = None
 
+        # Scalars used to (re)seed the per-run delta-cache state in sample();
+        # the cache itself is built per-run via faster_init(steps).
         self.thresh = 5.0
         self.ret_steps = 2
         self.carving_ratio = 0.10
-        self.dir_weight = 0.5
-        self.cache_dic, self.current = faster_init(25)
-        self.cache_dic['thresh'] = self.thresh
-        self.cache_dic['dir_weight'] = self.dir_weight
-        self.cache_dic['first_enhance'] = self.ret_steps
 
     # Inject the SS-stage spatial scores used for token selection.
     def set_coords_scores(self, coords_scores):
@@ -416,14 +417,13 @@ class FlowEulerSampler_faster(FlowEulerSampler):
 
         self.cache_dic, self.current = faster_init(steps)
         self.cache_dic['thresh'] = self.thresh
-        self.cache_dic['dir_weight'] = self.dir_weight
         self.cache_dic['first_enhance'] = self.ret_steps
 
         # Token carving requires per-token spatial scores from the SS stage and
         # cannot run when the model concatenates a full-resolution conditioning
-        # tensor (tex stage: concat_cond), since carved coords would mismatch.
-        # In those cases we keep the (still load-bearing) easy delta-cache and
-        # only disable carving.
+        # tensor (texture stage: concat_cond), since the carved coordinates
+        # would not match. In those cases the easy delta-cache still applies and
+        # only carving is disabled.
         has_concat_cond = kwargs.get('concat_cond', None) is not None
         token_available = (
             self.coords_scores is not None
@@ -438,12 +438,9 @@ class FlowEulerSampler_faster(FlowEulerSampler):
 
         N, C = sample.feats.shape
         self.args.effective_steps = steps
-        self.args.full_sampling_end_steps = int(np.ceil(steps * self.args.full_sampling_end_ratio))
-        self.args.anchor_step = max(1, int(np.floor(steps * self.args.anchor_ratio)))
         self._init_token_state((N, C), sample.device, self.args, model)
 
         self.LEADER.total_tokens = N
-        self.LEADER.schedule_is_set = True
 
         self.coords_raw = sample.coords
 
@@ -464,7 +461,24 @@ class FlowEulerSampler_faster(FlowEulerSampler):
 
         print("[faster-slat] Activated steps:   ", self.current['activated_steps'])
         ret.samples = sample
+        # Release the SLaT delta-cache feature tensors, the carved-coordinates
+        # reference, and the stability-tracker buffers held on the sampler
+        # instance so the pipeline's torch.cuda.empty_cache() can reclaim them
+        # between stages and runs.
+        self.free_cache()
         return ret
+
+    def free_cache(self):
+        """Drop CUDA tensors retained by the SLaT delta-cache after a run."""
+        if self.cache_dic is not None:
+            cache = self.cache_dic.get('cache', None)
+            if cache is not None:
+                for key in ('prev_x', 'prev_prev_x', 'prev_v', 'easy', 'feature'):
+                    cache[key] = None
+        self.cache_dic = None
+        self.current = None
+        self.coords_raw = None
+        self.stability_tracker.free()
 
     @torch.no_grad()
     def sample_once(

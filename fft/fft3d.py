@@ -1,12 +1,20 @@
-# Faithful port of Fast-TRELLIS's 3D high-frequency-energy scoring used to rank
-# voxels for SLaT token carving. Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT).
-# On TRELLIS.2 this runs on the post-maxpool SS occupancy grid so per-voxel
-# scores align 1:1 with the pipeline's `coords`. Plotly visualisation is
-# opt-in (draw_spatial/draw_freq, off by default).
+# Fast-TRELLIS 3D high-frequency-energy scoring, used to rank voxels for SLaT
+# token carving.
+#
+# Each voxel is scored by its high-frequency content: the occupancy grid is
+# transformed with a 3D FFT, low frequencies near the spectrum center are
+# masked out, and the inverse transform gives a per-voxel high-frequency
+# intensity. Higher-scoring voxels carry more spatial detail and are preferred
+# for full recomputation. Scoring runs on the post-maxpool SS occupancy grid so
+# per-voxel scores align 1:1 with the pipeline's `coords`. The Plotly
+# visualisation (draw_spatial/draw_freq) is optional and off by default.
 import numpy as np
 import torch
-import plotly.graph_objects as go
 import os
+
+# plotly is only needed by the opt-in visualisation helpers
+# (plot_spatial_heatmap / plot_freq_domain). It is imported lazily inside those
+# functions so the always-imported pipeline path has no hard plotly dependency.
 
 
 def get_coords_value(ss):
@@ -193,9 +201,10 @@ def plot_spatial_heatmap(spatial_data, filename="spatial_highfreq.html", filter_
 
 
 def plot_freq_domain(freq_data, filename="freq_domain_spectrum.html"):
+    import plotly.graph_objects as go
 
     if freq_data is None: return
-    mag = freq_data["magnitude"] 
+    mag = freq_data["magnitude"]
     grid_size = freq_data["grid_size"]
     z, y, x = np.indices(mag.shape)
     
@@ -251,13 +260,17 @@ def plot_freq_domain(freq_data, filename="freq_domain_spectrum.html"):
     # print(f"saved to: {save_path}")
 
 
-def process_and_visualize(coords_value, output_dir="./output", filter_radius=8,draw_spatial = True,draw_freq = True):
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
-
+def process_and_visualize(coords_value, output_dir="./output", filter_radius=8, draw_spatial=False, draw_freq=False):
+    # Compute per-voxel high-frequency scores for token carving. The HTML
+    # visualisation (and the output dir it writes to) is opt-in: only created
+    # when draw_spatial/draw_freq is True, so the default scoring path has no
+    # filesystem side effects.
     spatial_data, freq_data = analyze_voxel_frequency(coords_value, filter_radius)
     coords_scores = package_to_tensor(spatial_data)
-    
+
+    if (draw_spatial or draw_freq) and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+
     if spatial_data is not None and draw_spatial:
         spatial_filename = os.path.join(output_dir, f"3dfft_spatial_R{filter_radius}.html")
         plot_spatial_heatmap(spatial_data, spatial_filename, filter_radius)
@@ -265,8 +278,8 @@ def process_and_visualize(coords_value, output_dir="./output", filter_radius=8,d
     if freq_data is not None and draw_freq:
         freq_filename = os.path.join(output_dir, f"3dfft_frequency_spectrum.html")
         plot_freq_domain(freq_data, freq_filename)
-    
-    return coords_scores,freq_data["hfer"] 
+
+    return coords_scores
 
 
 def package_to_tensor(spatial_data):
@@ -277,65 +290,5 @@ def package_to_tensor(spatial_data):
     xs = torch.as_tensor(spatial_data["x"], dtype=torch.float32)
 
     packed_tensor = torch.stack([raw_val, zs, ys, xs], dim=1)
-    
+
     return packed_tensor
-
-
-def plot_coords_scores_to_html(
-    coords_scores, 
-    filename="coords_visualization.html", 
-    max_points=50000, 
-    point_size=2,
-    colorscale='Viridis',
-    title="Coords Scores Visualization"
-):
-   
-    if isinstance(coords_scores, torch.Tensor):
-        coords_scores = coords_scores.detach().cpu().numpy()
-        
-    N = coords_scores.shape[0]
-    
-    if N > max_points:
-        indices = np.random.choice(N, max_points, replace=False)
-        data = coords_scores[indices]
-    else:
-        data = coords_scores
-    values = data[:, 0]
-    z = data[:, 1]
-    y = data[:, 2]
-    x = data[:, 3]
-
-
-    fig = go.Figure(data=[go.Scatter3d(
-        x=x,  
-        y=y, 
-        z=z,  
-        mode='markers',
-        marker=dict(
-            size=point_size,
-            color=values,      
-            colorscale=colorscale, 
-            colorbar=dict(title="Score / Value"),
-            opacity=0.8    
-        ),
-
-        text=[f"Val: {v:.4f}" for v in values],
-        hovertemplate='<b>Value</b>: %{text}<br>' +
-                      'X: %{x}<br>Y: %{y}<br>Z: %{z}<extra></extra>'
-    )])
-
-
-    fig.update_layout(
-        title=f"{title} (N={min(N, max_points)})",
-        scene=dict(
-            xaxis_title='X Axis',
-            yaxis_title='Y Axis',
-            zaxis_title='Z Axis',
-            aspectmode='data' 
-        ),
-        margin=dict(r=0, l=0, b=0, t=40)  
-    )
-
-
-    fig.write_html(filename)
-    # print(f"Saved {filename}")

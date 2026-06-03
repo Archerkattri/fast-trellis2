@@ -10,9 +10,6 @@ class AdvancedStabilityTracker:
         self.FIXED_THRESHOLD = 5
         self.ACCELERATION_WEIGHT = 0.7
         self.coords_scores = None
-        self.motion_score = None
-        self.spatial_score = None
-        self.final_scores = None
 
     def reset(self, num_tokens=4096, latent_channels=8, device="cpu"):
         self.device = device
@@ -22,8 +19,11 @@ class AdvancedStabilityTracker:
         )
         self.prev_pred_v = None
 
-    def set_hyperparameters(self, args):
-        pass
+    def free(self):
+        """Release retained CUDA buffers after a run so they can be reclaimed."""
+        self.cached_streak_counter = None
+        self.prev_pred_v = None
+        self.coords_scores = None
 
     @torch.no_grad()
     def update_and_select_combined(
@@ -52,7 +52,6 @@ class AdvancedStabilityTracker:
                 torch.arange(self.num_tokens, device=self.device),
             )
 
-        current_coords = coords_scores[:, 1:]
         l2_scores = torch.norm(pred_v, p=2, dim=-1).view(-1)
         if is_first_frame:
             acceleration_scores = torch.zeros_like(l2_scores)
@@ -72,10 +71,6 @@ class AdvancedStabilityTracker:
             spatial_raw.max() - spatial_raw.min() + eps
         )
         final_scores = spatial_weight * spatial_score + (1.0 - spatial_weight) * motion_score
-
-        self.motion_score = torch.cat([motion_score.unsqueeze(1), current_coords], dim=1)
-        self.spatial_score = torch.cat([spatial_score.unsqueeze(1), current_coords], dim=1)
-        self.final_scores = torch.cat([final_scores.unsqueeze(1), current_coords], dim=1)
 
         num_to_pick = min(num_to_skip, self.num_tokens)
         if num_to_pick > 0:

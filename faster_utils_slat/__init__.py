@@ -1,8 +1,11 @@
-# Faithful port of Fast-TRELLIS's SLaT "easy" delta-cache + learned-k skip.
-# Source: wlfeng0509/Fast-SAM3D (Fast-TRELLIS branch) (MIT). num_steps is now passed from the v2
-# sampler (v2 uses a 12-step schedule, not v1's fixed 25) so the skip logic
-# tracks the actual step count.
-import torch.nn.functional as F
+# Fast-TRELLIS SLaT acceleration: the "easy" delta-cache and learned-k skip
+# logic for structured-latent (SLaT) sampling.
+#
+# The cache reuses a step's velocity delta when the input change since the last
+# full step is small, and recomputes the full model output otherwise. The skip
+# decision is calibrated by a learned gain `k` relating input change to output
+# change. `num_steps` is supplied by the sampler so the skip logic tracks the
+# actual step count of the active schedule.
 
 
 def faster_init(num_steps):
@@ -18,11 +21,9 @@ def faster_init(num_steps):
     }
     faster_dic = {
         "thresh": 1.0,
-        "dir_weight": 0.5,
         "faster_counter": 0,
         "cache": faster_state,
         "faster_enabled": True,
-        "max_order": 2,
         "first_enhance": 1,
     }
     current = {
@@ -53,13 +54,6 @@ def faster_cal_type(faster_dic, current, input):
         if has_history:
             delta_x = input - faster_state["prev_x"]
             input_change_mag = delta_x.abs().mean()
-            prev_delta_x = faster_state["prev_x"] - faster_state["prev_prev_x"]
-            cos_sim = F.cosine_similarity(
-                delta_x.reshape(1, -1),
-                prev_delta_x.reshape(1, -1),
-                dim=1,
-            )
-            direction_error = 1.0 - cos_sim.item()
 
             if faster_state["k"] is not None:
                 output_norm = faster_state["prev_v"].abs().mean() + 1e-6
