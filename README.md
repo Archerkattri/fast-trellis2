@@ -6,6 +6,11 @@
 
 **[Fast-TRELLIS](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS)'s training-free acceleration, faithfully ported onto [TRELLIS.2](https://github.com/microsoft/TRELLIS).**
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](./LICENSE)
+[![base: TRELLIS.2](https://img.shields.io/badge/base-microsoft%2FTRELLIS.2-555.svg?style=flat-square)](https://github.com/microsoft/TRELLIS.2)
+[![arXiv: TRELLIS.2](https://img.shields.io/badge/arXiv-2512.14692%20TRELLIS.2-b31b1b.svg?style=flat-square)](https://arxiv.org/abs/2512.14692)
+[![method: Fast-TRELLIS](https://img.shields.io/badge/method-Fast--TRELLIS-555.svg?style=flat-square)](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS)
+
 `TRELLIS.2-4B` · `1024_cascade` (mesh + texture) · training-free · single RTX 5090 · MIT
 
 </div>
