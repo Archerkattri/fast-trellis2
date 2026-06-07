@@ -1,6 +1,10 @@
     MIT License
 
-    Copyright (c) Microsoft Corporation.
+    Copyright (c) 2026 Krishi Attri (fast-trellis2 port)
+    Copyright (c) Microsoft Corporation (TRELLIS.2)
+
+    This project ports Fast-TRELLIS's training-free acceleration onto
+    microsoft/TRELLIS.2. See NOTICE for full attribution.
 
     Permission is hereby granted, free of charge, to any person obtaining a copy
     of this software and associated documentation files (the "Software"), to deal
