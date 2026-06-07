@@ -1,5 +1,7 @@
 <div align="center">
 
+<img src="assets/banner.png" alt="fast-trellis2" width="680">
+
 # 🛠 fast-trellis2
 
 **[Fast-TRELLIS](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS)'s training-free acceleration, faithfully ported onto [TRELLIS.2](https://github.com/microsoft/TRELLIS).**
