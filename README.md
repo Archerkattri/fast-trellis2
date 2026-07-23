@@ -6,6 +6,7 @@
 
 <p>
   <a href="https://github.com/Archerkattri/fast-trellis2/releases"><img alt="Release" src="https://img.shields.io/github/v/release/Archerkattri/fast-trellis2?color=1f6feb"></a>
+  <a href="https://github.com/Archerkattri/fast-trellis2/releases"><img alt="Downloads" src="https://img.shields.io/github/downloads/Archerkattri/fast-trellis2/total?label=downloads&color=1f6feb"></a>
   <a href="LICENSE"><img alt="License" src="https://img.shields.io/github/license/Archerkattri/fast-trellis2?color=0d9488"></a>
 </p>
 
