@@ -57,7 +57,10 @@ base generator, and the `+` / `++` suffix is a **method choice**, not a rival pr
 
 ---
 
-## At a glance
+## At a glance (as measured)
+
+The following card is retained as prior-run evidence from the stated benchmark setup. It is not a
+current acceptance result. Re-run on the target GPU before making a new claim.
 
 40 Toys4K objects, `1024_cascade`, **RTX 5090**, seed 42; means over the 35 objects every
 config completed in one run. Geometry is scored on the o-voxel mesh decoder output with
@@ -75,6 +78,13 @@ while *improving* geometry** — higher mean F-score (0.900 vs 0.860) and lower 
 objects (ball, bowl…) Go-ICP cannot orient uniquely, hence the per-object median alongside. For our
 own v2 acceleration method — the Hermite carved hybrid (HiCache SS forecast + token-carved SLaT) —
 see the sibling repo **hermit-trellis2**.</sub>
+
+### Baseline contract (frozen reference)
+
+This repo is the family's TaylorSeer control: its forecast math must not change.
+`tests/test_taylor_baseline.py` pins the cache schedule and the Taylor forecast on fixed series;
+CI runs it on every push. Method upgrades (Hermite, DMD, deployment contract) belong in the
+sibling repos, never here.
 
 ---
 

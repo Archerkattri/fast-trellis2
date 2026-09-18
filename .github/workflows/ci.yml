@@ -1,21 +1,32 @@
 name: CI
+
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+
 jobs:
-  source-integrity:
+  cpu-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.11"
+      - name: Install CPU test dependencies
+        # No hicache-pp: this repo is the TaylorSeer baseline and must stay
+        # independent of the HiCache stack it serves as the control for.
+        run: |
+          python -m pip install --upgrade pip
+          pip install --index-url https://download.pytorch.org/whl/cpu "torch>=2.1"
+          pip install numpy
       - name: Reject unresolved merge markers
         run: |
           if git grep -n -E '^(<<<<<<<|=======|>>>>>>>)' -- '*.py'; then
             exit 1
           fi
-      - name: Compile tracked Python source
-        run: git ls-files -z '*.py' | xargs -0 python -m py_compile
+      - name: Compile first-party source
+        run: python -m compileall -q trellis2 tests taylor_utils_ss faster_utils_slat fft token_slat
+      - name: Run standalone CPU baseline lock tests
+        run: python tests/test_taylor_baseline.py
