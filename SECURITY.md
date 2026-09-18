@@ -1,14 +1,24 @@
-<!-- BEGIN MICROSOFT SECURITY.MD V1.0.0 BLOCK -->
+# Security Policy
 
-## Security
+## Reporting a Vulnerability
 
-Microsoft takes the security of our software products and services seriously, which
-includes all source code repositories in our GitHub organizations.
+Do **not** open a public issue for security vulnerabilities. Report them
+privately via [private vulnerability reporting](https://github.com/Archerkattri/fast-trellis2/security/advisories/new).
 
-**Please do not report security vulnerabilities through public GitHub issues.**
+Please include:
 
-For security reporting information, locations, contact information, and policies,
-please review the latest guidance for Microsoft repositories at
-[https://aka.ms/SECURITY.md](https://aka.ms/SECURITY.md).
+- Affected version, tag, or commit
+- Description of the issue and its impact
+- Steps to reproduce, exploit, or proof of concept (if available)
 
-<!-- END MICROSOFT SECURITY.MD BLOCK -->
+## What to Expect
+
+- Acknowledgement of your report within 7 days.
+- A fix or mitigation on a best-effort timeline; credit in the release notes
+  if you want it.
+- Please do not disclose the issue publicly until a fix is released.
+
+## Supported Versions
+
+Security fixes are provided for the latest release on the default branch.
+Older releases are supported on a best-effort basis only.
