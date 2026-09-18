@@ -1,0 +1,23 @@
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      security:
+        applies-to: "security-updates"
+  - package-ecosystem: "gitsubmodule"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      security:
+        applies-to: "security-updates"
+  - package-ecosystem: "pip"
+    directory: "/o-voxel"
+    schedule:
+      interval: "weekly"
+    groups:
+      security:
+        applies-to: "security-updates"
