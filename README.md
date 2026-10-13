@@ -82,10 +82,11 @@ see the sibling repo **hermit-trellis2**.</sub>
 ### Baseline contract (frozen reference)
 
 This repo is the family's TaylorSeer control: its forecast math must not change.
-The bounded ACC16 deployment contract adds shared budget decisions and CPU
-contracts while retaining the Taylor formula and blend. Hermite/DMD method
-upgrades belong in the sibling repos. This extension provides no new model
-quality or performance result.
+This WIP adds an experimental bounded deployment contract around the existing
+Taylor formula and blend; forecast math is unchanged. The review branch retains
+source-integrity CI and no unit-test suite. Hermite/DMD method upgrades belong
+in the sibling repos. This extension provides no new model-quality or
+performance result.
 
 ### Bounded SS runtime (WIP)
 
