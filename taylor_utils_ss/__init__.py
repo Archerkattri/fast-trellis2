@@ -6,9 +6,22 @@
 # full model pass. The cache schedule (first_enhance/end_enhance/interval) is
 # parameterised so the sampler can adapt it to the active SS step count.
 import math
+from numbers import Integral
 from typing import Dict
 
 import torch
+
+
+def taylor_schedule(num_steps):
+    """Retain the SS warmup/interval policy, including a full terminal step."""
+    if isinstance(num_steps, bool) or not isinstance(num_steps, Integral) or num_steps < 1:
+        raise ValueError("num_steps must be a positive integer")
+    return {
+        "first_enhance": max(2, round(num_steps / 3.0)) if num_steps < 20 else 2,
+        "end_enhance": num_steps - 1,
+        "taylor_interval": 4 if num_steps >= 20 else 3,
+        "max_order": 1,
+    }
 
 
 def taylor_init(num_steps, taylor_interval=3, max_order=1, first_enhance=2, end_enhance=24):
@@ -22,6 +35,7 @@ def taylor_init(num_steps, taylor_interval=3, max_order=1, first_enhance=2, end_
         "first_enhance": first_enhance,
         "end_enhance": end_enhance,
         "taylor_enabled": True,
+        "last_full_step": None,
     }
     current = {
         "activated_steps": [],
@@ -31,24 +45,45 @@ def taylor_init(num_steps, taylor_interval=3, max_order=1, first_enhance=2, end_
     return taylor_dic, current
 
 
-def taylor_cal_type(taylor_dic, current):
-    """Mark the current SS step as a full model step or a Taylor predicted step."""
+def taylor_cal_type(taylor_dic, current, *, runtime=None, stage="sparse_structure", memory_mb=None):
+    """Choose a step; the anchor is updated only after actual full computation."""
     first_steps = current["step"] < taylor_dic["first_enhance"]
-    end_steps = current["step"] >= taylor_dic["end_enhance"]
-    interval_hit = taylor_dic["taylor_counter"] == taylor_dic["taylor_interval"] - 1
+    end_steps = current["step"] >= min(taylor_dic["end_enhance"], current["num_steps"] - 1)
+    interval_hit = taylor_dic["taylor_counter"] >= taylor_dic["taylor_interval"] - 1
+    anchor = taylor_dic["last_full_step"]
+    force_full = first_steps or interval_hit or end_steps or anchor is None
+    decision = None
+    if runtime is not None:
+        decision = runtime.decide(
+            stage,
+            horizon=0 if anchor is None else current["step"] - anchor,
+            supported=taylor_dic["taylor_enabled"],
+            memory_mb=memory_mb,
+            force_full=force_full,
+        )
+        full = decision.method == "full"
+    else:
+        full = force_full or not taylor_dic["taylor_enabled"]
 
-    if first_steps or interval_hit or end_steps:
+    if full:
         current["type"] = "full"
         taylor_dic["taylor_counter"] = 0
-        current["activated_steps"].append(current["step"])
-    elif taylor_dic["taylor_enabled"]:
+    else:
         taylor_dic["taylor_counter"] += 1
         current["type"] = "taylor"
-    else:
-        raise ValueError("Unsupported TaylorSeer calculation type")
+    return decision
+
+
+def taylor_record_full_step(taylor_dic, current):
+    """Record an actual full evaluation without retaining its velocity."""
+    current["activated_steps"].append(current["step"])
+    taylor_dic["last_full_step"] = current["step"]
 
 
 def derivative_approximation(taylor_dic: Dict, current: Dict, feature: torch.Tensor):
+    # Called after the model returned its full velocity, including budget
+    # fallbacks. Forecast velocities never become derivative anchors.
+    taylor_record_full_step(taylor_dic, current)
     if len(current["activated_steps"]) < 2:
         difference_distance = 1.0
     else:

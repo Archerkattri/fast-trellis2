@@ -227,6 +227,8 @@ from taylor_utils_ss import (
     taylor_cal_type,
     taylor_formula,
     taylor_init,
+    taylor_record_full_step,
+    taylor_schedule,
 )
 
 
@@ -239,6 +241,9 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         self.cache_dic = None
         self.current = None
         self.prev_v = None
+        self.budget_runtime = None
+        self.last_manifest = None
+        self.last_run_completed = False
 
     @torch.no_grad()
     def sample(
@@ -250,49 +255,122 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         rescale_t: float = 1.0,
         verbose: bool = True,
         tqdm_desc: str = "Sampling",
+        cache_budget=None,
+        taylor_enabled: bool = True,
+        cache_stage: str = "sparse_structure",
+        run_identity=None,
         **kwargs
     ):
-        sample = noise
-        t_seq = np.linspace(1, 0, steps + 1)
-        t_seq = rescale_t * t_seq / (1 + (rescale_t - 1) * t_seq)
-        t_seq = t_seq.tolist()
-        t_pairs = list((t_seq[i], t_seq[i + 1]) for i in range(steps))
-        ret = edict({"samples": None, "pred_x_t": [], "pred_x_0": []})
+        """Sample with an SS-only Taylor budget; retain a tensor-free manifest.
 
-        # Derive the TaylorSeer cache schedule from the actual SS step count so
-        # it remains well-conditioned across both long and short schedules:
-        #   * a few full model steps at the start to warm up the cache,
-        #   * the final step always a full pass (end_enhance = steps-1),
-        #   * a Taylor interval that shrinks for short schedules.
-        first_enhance = max(2, round(steps * 1.0 / 3.0)) if steps < 20 else 2
-        end_enhance = max(first_enhance + 1, steps - 1)
-        taylor_interval = 4 if steps >= 20 else 3
-        self.cache_dic, self.current = taylor_init(
-            steps,
-            taylor_interval=taylor_interval,
-            max_order=1,
-            first_enhance=first_enhance,
-            end_enhance=end_enhance,
-        )
-        for t, t_prev in tqdm(t_pairs, desc=tqdm_desc, disable=not verbose):
-            out = self.sample_once(model, sample, t, t_prev, cond, **kwargs)
-            sample = out.pred_x_prev
-            ret.pred_x_t.append(out.pred_x_prev)
-            ret.pred_x_0.append(out.pred_x_0)
+        Unknown weights, conditioning, input content and source digests remain
+        empty. Caller-provided RunIdentity digests are declarations, not hashes
+        verified by this adapter. Schedule/dtype/device/stage reflect this run.
+        """
+        from dataclasses import replace
+        from uuid import uuid4
 
-        print("[taylor-ss] Activated steps:   ", self.current['activated_steps'])
-        ret.samples = sample
-        # Release the cached SS velocity tensors held on the sampler instance so
-        # the pipeline's torch.cuda.empty_cache() can reclaim them between stages
-        # and runs.
         self.free_cache()
-        return ret
+        self.last_manifest = None
+        self.last_run_completed = False
+        runtime = None
+        completed = False
+        try:
+            # Lazy dependency: importing the original Euler/SLaT samplers does
+            # not require the shared runtime. Executing Taylor does.
+            from hicache_pp.budget import CacheBudget, CacheBudgetRuntime, RunIdentity, stable_digest
+
+            schedule = taylor_schedule(steps)
+            if not np.isfinite(rescale_t) or rescale_t <= 0:
+                raise ValueError("rescale_t must be finite and positive")
+            if not isinstance(taylor_enabled, bool):
+                raise TypeError("taylor_enabled must be bool")
+            budget = cache_budget
+            if budget is None:
+                budget = CacheBudget(
+                    backend="taylor", allowed_stages=("sparse_structure",),
+                    max_horizon=schedule["taylor_interval"] - 1, fallback="full",
+                )
+            elif not isinstance(budget, CacheBudget):
+                budget = CacheBudget.from_mapping(budget)
+            if budget.backend not in ("taylor", "full"):
+                raise ValueError("SS adapter backend must be taylor or full")
+            if budget.allowed_stages != ("sparse_structure",) or budget.fallback != "full":
+                raise ValueError("SS adapter requires allowed_stages=('sparse_structure',) and fallback='full'")
+            if budget.max_predicted_error is not None:
+                raise ValueError("Taylor SS adapter has no validated forecast-error estimator")
+            sample = noise
+            t_seq = np.linspace(1, 0, steps + 1)
+            t_seq = (rescale_t * t_seq / (1 + (rescale_t - 1) * t_seq)).tolist()
+            guidance = {key: kwargs[key] for key in (
+                "guidance_strength", "guidance_interval", "guidance_rescale"
+            ) if key in kwargs}
+            if run_identity is None:
+                identity = RunIdentity(
+                    model_id=f"{type(model).__module__}.{type(model).__qualname__}",
+                    run_id=uuid4().hex,
+                    cfg_branch="combined" if "neg_cond" in kwargs else "conditional",
+                )
+            elif isinstance(run_identity, RunIdentity):
+                identity = run_identity
+            else:
+                identity = RunIdentity.from_mapping(run_identity)
+            identity = replace(
+                identity, run_id=identity.run_id or uuid4().hex,
+                stage=cache_stage, dtype=str(noise.dtype), device=str(noise.device),
+                schedule_digest=stable_digest({
+                    "timesteps": t_seq, "sigma_min": self.sigma_min, "guidance": guidance,
+                }),
+            )
+            runtime = CacheBudgetRuntime(budget, identity, config_digest=stable_digest({
+                "budget": budget.as_dict(), "schedule": schedule, "taylor_enabled": taylor_enabled,
+            }))
+            self.budget_runtime = runtime
+            self.cache_dic, self.current = taylor_init(steps, **schedule)
+            self.cache_dic["taylor_enabled"] = taylor_enabled
+            ret = edict({"samples": None, "pred_x_t": [], "pred_x_0": []})
+            t_pairs = list(zip(t_seq[:-1], t_seq[1:]))
+            for t, t_prev in tqdm(t_pairs, desc=tqdm_desc, disable=not verbose):
+                out = self.sample_once(model, sample, t, t_prev, cond, **kwargs)
+                sample = out.pred_x_prev
+                ret.pred_x_t.append(out.pred_x_prev)
+                ret.pred_x_0.append(out.pred_x_0)
+            ret.samples = sample
+            ret.activated_steps = list(self.current["activated_steps"])
+            ret.cache_manifest = self._budget_manifest(runtime)
+            if verbose:
+                print("[taylor-ss] Activated steps:   ", ret.activated_steps)
+            completed = True
+            return ret
+        finally:
+            # Cleanup precedes report construction so even a reporting failure
+            # cannot leave tensors reachable from the sampler instance.
+            self.free_cache()
+            if runtime is not None:
+                self.last_manifest = self._budget_manifest(runtime)
+            self.last_run_completed = completed
+
+    @staticmethod
+    def _budget_manifest(runtime):
+        manifest = runtime.manifest.as_dict()
+        manifest["adapter_measurement_scope"] = {
+            "memory_mb": "Taylor factor and previous-velocity tensor payload only; excludes model weights, sparse coordinates, activations, temporaries, and device peak",
+            "predicted_error": "unavailable; adapter rejects error caps",
+        }
+        return manifest
 
     def free_cache(self):
-        """Drop CUDA tensors retained by the TaylorSeer SS cache after a run."""
+        """Drop cached tensor references after success, failure or cancellation."""
         self.cache_dic = None
         self.current = None
         self.prev_v = None
+        self.budget_runtime = None
+
+    def _cache_memory_mb(self):
+        """Logical tensor payload size, not process/peak/device memory."""
+        factors = self.cache_dic["cache"][-1]["final"]["final"].get("default", {})
+        tensors = {id(value): value for value in (*factors.values(), self.prev_v) if value is not None}
+        return sum(value.numel() * value.element_size() for value in tensors.values()) / (1024 ** 2)
 
     @torch.no_grad()
     def sample_once(
@@ -305,7 +383,12 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         **kwargs
     ):
         # Determine whether this step runs the full model or a Taylor prediction.
-        taylor_cal_type(self.cache_dic, self.current)
+        if self.cache_dic is None or self.budget_runtime is None:
+            raise RuntimeError("Taylor sample_once requires an active sample() run")
+        decision = taylor_cal_type(
+            self.cache_dic, self.current, runtime=self.budget_runtime,
+            stage=self.budget_runtime.identity.stage, memory_mb=self._cache_memory_mb(),
+        )
         self.current['stream'] = 'final'
         self.current['layer'] = 'final'
         self.current['module'] = 'final'
@@ -313,8 +396,14 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         if self.current['type'] == 'full':
             pred_x_0, pred_eps, pred_v = self._get_model_prediction(model, x_t, t, cond, **kwargs)
             pred_x_prev = x_t - (t - t_prev) * pred_v
-            self.prev_v = pred_v
-            taylor_derivative_approximation(self.cache_dic, self.current, pred_v)
+            budget = self.budget_runtime.budget
+            if (self.cache_dic["taylor_enabled"] and budget.backend == "taylor"
+                    and self.budget_runtime.identity.stage == "sparse_structure"
+                    and budget.max_predicted_error is None):
+                self.prev_v = pred_v
+                taylor_derivative_approximation(self.cache_dic, self.current, pred_v)
+            else:
+                taylor_record_full_step(self.cache_dic, self.current)
             output = edict({"pred_x_prev": pred_x_prev, "pred_x_0": pred_x_0})
         elif self.current['type'] == 'taylor':
             pred_v = taylor_formula(self.cache_dic, self.current, self.prev_v, beta=0.5)
@@ -326,6 +415,7 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
             raise ValueError(f"Unsupported taylor step type: {self.current['type']}")
 
         self.current['step'] += 1
+        output.cache_decision = decision.as_dict()
         return output
 
 

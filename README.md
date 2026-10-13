@@ -82,8 +82,58 @@ see the sibling repo **hermit-trellis2**.</sub>
 ### Baseline contract (frozen reference)
 
 This repo is the family's TaylorSeer control: its forecast math must not change.
-The review branch retains source-integrity CI but no unit-test suite. Method upgrades
-(Hermite, DMD, deployment contract) belong in the sibling repos, never here.
+The bounded ACC16 deployment contract adds shared budget decisions and CPU
+contracts while retaining the Taylor formula and blend. Hermite/DMD method
+upgrades belong in the sibling repos. This extension provides no new model
+quality or performance result.
+
+### Bounded SS runtime (WIP)
+
+Taylor sampling now requires the matching `hicache-pp` WIP runtime containing
+the explicit `taylor` budget method. With both checkouts available, install
+that checkout using `python -m pip install --no-deps -e ../hicache-plus-plus`.
+Existing torch and TRELLIS dependencies still need to be installed separately.
+
+```python
+from hicache_pp import CacheBudget
+
+budget = CacheBudget(
+    backend="taylor", allowed_stages=("sparse_structure",),
+    max_horizon=1, fallback="full",
+)
+# Pass through pipeline.run(..., sparse_structure_sampler_params={...}) or
+# directly to the sparse-structure sampler's sample(...):
+ss_options = {"cache_budget": budget, "taylor_enabled": True}
+```
+
+The adapter requires exactly `allowed_stages=('sparse_structure',)` and
+`fallback='full'`; only `taylor` and the `full` reference backend are accepted.
+The default horizon preserves the existing interval. Warmup and the terminal
+step always compute fully, including schedules of one to three steps. Horizon
+is measured from the last actual full evaluation, including budget fallbacks.
+`taylor_enabled=False` or `backend='full'` computes every step. An invocation
+with another `cache_stage` also computes fully. These controls are consumed by
+the adapter rather than forwarded to the model.
+
+`max_memory_mb` bounds retained cache tensor payload, not peak VRAM or total
+pipeline memory. An error cap forces full fallback because no calibrated
+forward-error estimator exists in this adapter. `audit_budget` is not an
+automatic audit/controller implementation.
+
+Successful results contain `activated_steps` and `cache_manifest`. The sampler
+retains `last_manifest` and `last_run_completed`; failed/cancelled runs are
+incomplete. Manifest events are decision requests, so a partial failed report
+can include the decision for the operation that raised. Full decision counts
+count sampler steps, not individual CFG branch calls. All retained cache tensor
+references are dropped in `finally`.
+
+Default identity records the model's Python class, a fresh run ID, actual
+schedule/guidance configuration, stage, dtype, and device. Unknown weights,
+conditioning content, token layout, source, and input digests are empty. An
+optional `run_identity` supplies caller declarations; content hashes are not
+verified by this adapter. No cache survives between runs. See
+[the CPU contract record](docs/ACC16-CPU-CONTRACT.md) for commands, results,
+test isolation limits, and external GPU gates.
 
 ---
 
