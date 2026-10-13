@@ -90,9 +90,14 @@ performance result.
 
 ### Bounded SS runtime (WIP)
 
-Taylor sampling now requires the matching `hicache-pp` WIP runtime containing
-the explicit `taylor` budget method. With both checkouts available, install
-that checkout using `python -m pip install --no-deps -e ../hicache-plus-plus`.
+Taylor sampling requires the shared `hicache-pp` runtime with the explicit
+`taylor` budget method. PyPI `hicache-pp` 1.3.0 predates this method token; use
+the verified source commit until a package release includes it:
+
+```bash
+python -m pip install --no-deps "git+https://github.com/Archerkattri/hicache-plus-plus.git@8fd47f9cfd2daca72a2679de69563a11b4f80f3b"
+```
+
 Existing torch and TRELLIS dependencies still need to be installed separately.
 
 ```python
