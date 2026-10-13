@@ -82,9 +82,8 @@ see the sibling repo **hermit-trellis2**.</sub>
 ### Baseline contract (frozen reference)
 
 This repo is the family's TaylorSeer control: its forecast math must not change.
-`tests/test_taylor_baseline.py` pins the cache schedule and the Taylor forecast on fixed series;
-CI runs it on every push. Method upgrades (Hermite, DMD, deployment contract) belong in the
-sibling repos, never here.
+The review branch retains source-integrity CI but no unit-test suite. Method upgrades
+(Hermite, DMD, deployment contract) belong in the sibling repos, never here.
 
 ---
 
