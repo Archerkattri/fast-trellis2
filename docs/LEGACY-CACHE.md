@@ -26,7 +26,6 @@ Caller-supplied identities are declarations, not automatically verified hashes.
 No cache persists between completed runs. The recorded `activated_steps` count
 sampler steps, not conditional/unconditional branch calls.
 
-The forecast formula remains the upstream Taylor baseline; new Hermite/DMD
-methods are outside this repository's legacy control. See the historical
-[CPU contract](archive/ACC16-CPU-CONTRACT.md) and [investigation](archive/ISSUE-4-GPU-INVESTIGATION.md)
-for detailed experiments and their limitations.
+The forecast formula remains the upstream Taylor baseline. The
+[original CPU contract](https://github.com/Archerkattri/fast-trellis2/blob/v0.2.0/docs/archive/ACC16-CPU-CONTRACT.md)
+records the budget integration and its tests.

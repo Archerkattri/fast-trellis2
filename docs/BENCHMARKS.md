@@ -35,8 +35,8 @@ accuracy. PSNR uses six matched 60k-face proxy renders; even native repeat
 decimation gives 33.25 dB in this setup. Near-one Fscore is not identical geometry.
 PBR material differences remain: seed 42/43 shared-coordinate metallic RMSE is
 .04630/.03902 and alpha RMSE .00943/.02305. See the
-[full material diagnostics](issue-4-final-material-attributes.json) and
-[quality analysis](ISSUE-4-QUALITY-PROFILE.md). Use `sage` when these deviations matter.
+[full material diagnostics](../benchmarks/issue4/v2-materials.json) and
+[method analysis](METHODS.md). Use `sage` when these deviations matter.
 
 ## Four-way comparison
 
@@ -72,7 +72,7 @@ All four meshes were rendered raw, without decimation, at 512px with six common
 cameras. Appearance uses V1 vertex color and V2 volumetric base color; clay uses
 common lighting. The figures show view 0. The release evidence bundle contains
 all 48 PNGs, camera manifest, data and figure-building source. PNG/SVG/PDF figure
-exports are available under [images/](images/).
+exports are in the [release evidence ZIP](https://github.com/Archerkattri/fast-trellis2/releases/download/v0.2.0/fast-trellis2-v0.2.0-evidence.zip).
 
 ## CLI validation
 
@@ -84,4 +84,4 @@ provided as a release asset with metadata and a checksum. This validates the
 CLI/export path in that runtime, not a fresh Linux installation.
 
 See [methods](METHODS.md), [raw data and reproduction protocol](../benchmarks/README.md)
-and the [historical investigation](archive/ISSUE-4-GPU-INVESTIGATION.md).
+and the [original investigation](https://github.com/Archerkattri/fast-trellis2/blob/v0.2.0/docs/archive/ISSUE-4-GPU-INVESTIGATION.md).

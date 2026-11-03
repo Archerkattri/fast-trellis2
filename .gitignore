@@ -211,3 +211,9 @@ ckpts/
 
 # Visualization cache
 visualization/
+
+# Generated meshes, run records and publication exports
+*.glb
+*.run.json
+/docs/images/*.svg
+/docs/images/*.pdf

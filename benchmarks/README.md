@@ -12,8 +12,8 @@ before reusing the numbers. The rendered input is the stool attached to
 - `issue4/v1-model-sources.json`: downloaded checkpoint files and SHA256 digests.
 - `issue4/render-manifest.json`: cameras, renderer, resolution and raw mesh counts.
 - `issue4/cli-validation.json`: real CLI/export metadata, with private paths removed.
-- `../docs/issue-4-final-speed-results.json`: both V2 seed pairs and fidelity diagnostics.
-- `../docs/issue-4-final-material-attributes.json`: shared-coordinate PBR diagnostics.
+- `issue4/v2-pairs.json`: both V2 seed pairs and fidelity diagnostics.
+- `issue4/v2-materials.json`: shared-coordinate PBR diagnostics.
 
 The release evidence ZIP adds all 48 raw color/clay renders and PNG/SVG/PDF
 figures. Model weights and the reporter's input attachment are not redistributed
@@ -27,6 +27,10 @@ the inference and invalidates a strict matched comparison.
 python -m pip install matplotlib==3.11.1 pillow==12.3.0
 python benchmarks/build_figures.py --renders /path/to/release-comparison
 ```
+
+Figures are written to `dist/figures` as PNG, SVG and PDF. To package a new
+comparison bundle, pass that directory with `build_bundle.py --figures dist/figures
+--renders /path/to/release-comparison --output dist/evidence.zip`.
 
 The plotting script reads recorded numbers and actual rendered images. It does
 not generate or edit model outputs. Scene pixels remain raster in SVG/PDF.

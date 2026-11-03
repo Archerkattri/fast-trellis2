@@ -10,6 +10,7 @@ import zipfile
 ROOT = Path(__file__).resolve().parents[1]
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--renders", type=Path, required=True)
+parser.add_argument("--figures", type=Path, default=ROOT / "docs/images")
 parser.add_argument("--output", type=Path, required=True)
 args = parser.parse_args()
 if args.output.exists():
@@ -31,9 +32,9 @@ for path in (ROOT / "docs").rglob("*.md"):
     entries[path.relative_to(ROOT).as_posix()] = path
 for path in (ROOT / "docs").glob("*.json"):
     entries[path.relative_to(ROOT).as_posix()] = path
-for path in (ROOT / "docs/images").glob("*"):
+for path in args.figures.glob("*"):
     if path.suffix in (".png", ".svg", ".pdf"):
-        entries[path.relative_to(ROOT).as_posix()] = path
+        entries["docs/images/" + path.name] = path
 for name in expected | {"render-manifest.json"}:
     entries["release-comparison/" + name] = args.renders / name
 manifest = {

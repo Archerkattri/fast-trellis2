@@ -12,7 +12,7 @@ from PIL import Image
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--data", type=Path, default=Path("benchmarks/issue4/results.json"))
 parser.add_argument("--renders", type=Path, required=True)
-parser.add_argument("--output", type=Path, default=Path("docs/images"))
+parser.add_argument("--output", type=Path, default=Path("dist/figures"))
 args = parser.parse_args()
 data = json.loads(args.data.read_text())
 args.output.mkdir(parents=True, exist_ok=True)

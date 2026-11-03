@@ -84,5 +84,18 @@ renders, material diagnostics and public-implementation latent parity provide
 separate model-level evidence. Passing the CPU checks alone does not establish
 GPU compatibility or output quality.
 
-Historical investigation records are preserved under [archive/](archive/).
-Unsupported historical benchmark claims are not used in the current release.
+## Issue #4 cache regression
+
+The inherited reuse rule `v_new = x_new + (v_anchor - x_anchor)` assumes a
+particular state response; its gain/history proxy does not bound time-dependent
+error. TRELLIS.2 adds state-dependent guidance rescaling and separate shape and
+texture flows. Cached guided velocity skips fresh rescaling, and shape errors
+change the texture conditioning. Guidance refresh ablations improved geometry
+but did not recover the complete native output. The native Euler conversion
+agrees with original TRELLIS; no new sign error was found.
+
+The fix preserves fresh sampling evaluations and uses faster kernels. Unused
+cascade FFT scores and stale scores across requests were also removed. The
+[full investigation](https://github.com/Archerkattri/fast-trellis2/blob/v0.2.0/docs/archive/ISSUE-4-GPU-INVESTIGATION.md)
+and [earlier ablations](https://github.com/Archerkattri/fast-trellis2/blob/v0.2.0/docs/archive/ISSUE-4-QUALITY-PROFILE.md)
+remain available in the v0.2.0 record.

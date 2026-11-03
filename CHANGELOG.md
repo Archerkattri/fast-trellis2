@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.1 — 2026-11-03
+
+- Restored the README logo and shortened the setup/results overview.
+- Removed duplicate documentation, historical task logs and unused demo assets from the source tree.
+- Kept raw benchmark data with the reproduction code; publication figures and complete history remain in v0.2.0 release assets and Git history.
+
+Inference behavior is unchanged from 0.2.0.
+
 ## 0.2.0 — 2026-11-03
 
 - Added explicit `native`, `sage`, `sage-fast`, `sage-fp16pv` and `legacy-cache` profiles.
