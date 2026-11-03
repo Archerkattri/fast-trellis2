@@ -89,4 +89,10 @@ for extension in ["png", "svg", "pdf"]:
         args.output / f"sampling-speedups.{extension}", dpi=200, facecolor="white"
     )
 plt.close(fig)
+for path in args.output.glob("*.svg"):
+    path.write_text(
+        "\n".join(line.rstrip() for line in path.read_text(encoding="utf-8").splitlines())
+        + "\n",
+        encoding="utf-8",
+    )
 print("Created PNG/SVG/PDF comparison and latency figures")
