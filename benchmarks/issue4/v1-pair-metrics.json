@@ -1,0 +1,8 @@
+{
+  "scope": "Raw vertex reference fidelity, 100k samples, threshold.005, no alignment; not ground-truth surface accuracy",
+  "geometry_fscore_0.005": 0.7742980276528618,
+  "vertex_chamfer": 0.003637734454561132,
+  "input_sha256": "8b4aaadd08553073d716eb985735e16b7714075811ba178f47d5976be70ec3b9",
+  "preprocessed_sha256": "161416d103622f33dcedaeece6505969f27ceafb3ca0dd9dde8c08e319161463",
+  "dino_weight_sha256": "36e4deffbaef061a2576705b0c36f93621e2ae20bf6274694821b0b492551b51"
+}

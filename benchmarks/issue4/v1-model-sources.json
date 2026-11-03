@@ -1,0 +1,53 @@
+{
+  "revision": "25e0d31ffbebe4b5a97464dd851910efc3002d96",
+  "files": [
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/ss_dec_conv3d_16l8_fp16.json",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\ss_dec_conv3d_16l8_fp16.json",
+      "sha256": "646781293f1cda74720de85d1cef50a957fb4aebd9a4bd014e454e32f2330ac5",
+      "size": 245
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/ss_dec_conv3d_16l8_fp16.safetensors",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\ss_dec_conv3d_16l8_fp16.safetensors",
+      "sha256": "1c76d4a40519aa2d711cc263a8404105231ac26db31d946bed48b84fee79009a",
+      "size": 147591972
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/ss_flow_img_dit_L_16l8_fp16.json",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\ss_flow_img_dit_L_16l8_fp16.json",
+      "sha256": "bf69161da7ece9a87394dd4441f0cfa6d4261696a214a8f68388c81fa9a6b5b7",
+      "size": 385
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/ss_flow_img_dit_L_16l8_fp16.safetensors",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\ss_flow_img_dit_L_16l8_fp16.safetensors",
+      "sha256": "96dc6bfd4136fd950af564dd16b4ae533c9ba6af8f26c670646b2a9f2789b1db",
+      "size": 1130770840
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/slat_dec_mesh_swin8_B_64l8m256c_fp16.json",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\slat_dec_mesh_swin8_B_64l8m256c_fp16.json",
+      "sha256": "293900795cb69cc972d1a20a4940ee12f7e007952c2ae92d128dda91b96ac317",
+      "size": 372
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/slat_dec_mesh_swin8_B_64l8m256c_fp16.safetensors",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\slat_dec_mesh_swin8_B_64l8m256c_fp16.safetensors",
+      "sha256": "3e87aba94b5786407eb06d0502c1ed0885a0027a3f2b8537bfe15b0a92c01859",
+      "size": 181903412
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/slat_flow_img_dit_L_64l8p2_fp16.json",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\slat_flow_img_dit_L_64l8p2_fp16.json",
+      "sha256": "c0a9bd57227f55cf75ff02562c27bb05c50174f06955f56a79dea2982fd7a8f9",
+      "size": 442
+    },
+    {
+      "url": "https://huggingface.co/microsoft/TRELLIS-image-large/resolve/25e0d31ffbebe4b5a97464dd851910efc3002d96/ckpts/slat_flow_img_dit_L_64l8p2_fp16.safetensors",
+      "file": "models\\trellis-v1-25e0d31f\\ckpts\\slat_flow_img_dit_L_64l8p2_fp16.safetensors",
+      "sha256": "693fb2a58ad497bd222007301eeec49d14d60f8c12d2f2f00c221fa747b4c66c",
+      "size": 1203755136
+    }
+  ]
+}

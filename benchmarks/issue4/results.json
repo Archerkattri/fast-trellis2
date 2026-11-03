@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-03",
+  "hardware": "NVIDIA RTX 4060 8188 MiB, Windows compatibility runtimes",
+  "seed": 42,
+  "input_sha256": "8b4aaadd08553073d716eb985735e16b7714075811ba178f47d5976be70ec3b9",
+  "scope": "Single uploaded image; independent native/fast pairs; V2 warm compiler cache; reference fidelity is not ground-truth accuracy",
+  "four_way": [
+    {
+      "id": "trellis",
+      "title": "TRELLIS",
+      "configuration": "25 steps \u00b7 256 mesh",
+      "sampler_seconds": 27.390850100200623,
+      "raw_vertices": 569566,
+      "raw_faces": 1138928,
+      "generation_seconds": 53.87219290016219,
+      "generation_timing_scope": "Includes stage loading, decoding and artifact save; excludes cached DINO conditioning and preprocessing"
+    },
+    {
+      "id": "fast-trellis",
+      "title": "Fast-TRELLIS",
+      "configuration": "25 steps \u00b7 256 mesh",
+      "sampler_seconds": 8.364156000083312,
+      "raw_vertices": 612307,
+      "raw_faces": 1223800,
+      "generation_seconds": 37.81846390012652,
+      "generation_timing_scope": "Includes stage loading, decoding and artifact save; excludes cached DINO conditioning and preprocessing"
+    },
+    {
+      "id": "trellis2",
+      "title": "TRELLIS.2",
+      "configuration": "12 steps \u00b7 1024 cascade",
+      "sampler_seconds": 195.1907182999421,
+      "raw_vertices": 5518908,
+      "raw_faces": 11051238,
+      "generation_seconds": 271.237985300133,
+      "generation_timing_scope": "Includes stage loading and raw decoding; excludes initial preprocessing, rendering and GLB export"
+    },
+    {
+      "id": "fast-trellis2",
+      "title": "fast-trellis2",
+      "configuration": "12 steps \u00b7 sage-fast",
+      "sampler_seconds": 134.69758849963546,
+      "raw_vertices": 5510096,
+      "raw_faces": 11035188,
+      "generation_seconds": 214.20432999986224,
+      "generation_timing_scope": "Includes stage loading and raw decoding; excludes initial preprocessing, rendering and GLB export"
+    }
+  ],
+  "v1_model_revision": "25e0d31ffbebe4b5a97464dd851910efc3002d96",
+  "v2_model_revision": "af44b45f2e35a493886929c6d786e563ec68364d",
+  "v1_native_source": "193e0502b5cb3eb5997ec457d5340e95d09b158e",
+  "v1_fast_source": "eb6f0821859a99d926a548518b6c19893cccffd6",
+  "v2_compat_source": "d5d38f1e033a881e2c00e3137822ef8aa4e193de",
+  "v2_profile_source": "0561b989033a55d3c3f4ef9b3649cd5df3e0a636"
+}

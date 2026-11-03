@@ -13,7 +13,7 @@ Please include:
 
 ## What to Expect
 
-- Acknowledgement of your report within 7 days.
+- Acknowledgement and investigation on a best-effort basis; there is no guaranteed response time.
 - A fix or mitigation on a best-effort timeline; credit in the release notes
   if you want it.
 - Please do not disclose the issue publicly until a fix is released.

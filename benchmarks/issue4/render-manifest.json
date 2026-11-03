@@ -1,0 +1,38 @@
+{
+  "seed": 42,
+  "input": "uploaded issue4 stool; shared saved preprocessed RGB image",
+  "render": "nvdiffrast CUDA, 512px, raw undecimated meshes, fixed cameras, base color + clay",
+  "camera": {
+    "yaw_start": 0.7853981633974483,
+    "yaw_step": 1.0471975511965976,
+    "pitch": 0.3,
+    "radius": 2,
+    "fov_degrees": 40
+  },
+  "cases": [
+    {
+      "label": "trellis",
+      "raw_vertices": 569566,
+      "raw_faces": 1138928,
+      "appearance": "vertex color"
+    },
+    {
+      "label": "fast-trellis",
+      "raw_vertices": 612307,
+      "raw_faces": 1223800,
+      "appearance": "vertex color"
+    },
+    {
+      "label": "trellis2",
+      "raw_vertices": 5518908,
+      "raw_faces": 11051238,
+      "appearance": "volumetric PBR base color, mesh decoder native resolution1024"
+    },
+    {
+      "label": "fast-trellis2",
+      "raw_vertices": 5510096,
+      "raw_faces": 11035188,
+      "appearance": "volumetric PBR base color, mesh decoder native resolution1024"
+    }
+  ]
+}

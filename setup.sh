@@ -1,139 +1,80 @@
-# Read Arguments
-TEMP=`getopt -o h --long help,new-env,basic,flash-attn,cumesh,o-voxel,flexgemm,nvdiffrast,nvdiffrec -n 'setup.sh' -- "$@"`
+#!/usr/bin/env bash
+# Linux/CUDA source installer. Build directories and caches are retained.
+set -euo pipefail
 
-eval set -- "$TEMP"
+usage() {
+    cat <<'EOF'
+Usage: bash setup.sh [OPTIONS]
+  -h, --help       Show help (no environment changes)
+  --new-env        Create/activate conda environment trellis2 (Python 3.11)
+  --basic          Install Python dependencies
+  --flash-attn     Install FlashAttention 2.8.3
+  --cumesh         Build CuMesh
+  --o-voxel        Build bundled o-voxel
+  --flexgemm       Build FlexGEMM
+  --nvdiffrast     Build nvdiffrast v0.4.0
+  --nvdiffrec      Build renderutils
+CUDA Toolkit, a compatible compiler, git and conda (--new-env only) are required.
+The new environment uses PyTorch 2.8.0 / CUDA 12.8. SageAttention is optional;
+see docs/INSTALLATION.md. Linux source installation is not CI GPU-certified.
+Existing caches/environments are never deleted. Extension build trees are kept
+under ${TMPDIR:-/tmp}/fast-trellis2-build.* for inspection and reuse.
+EOF
+}
 
-HELP=false
-NEW_ENV=false
-BASIC=false
-FLASHATTN=false
-CUMESH=false
-OVOXEL=false
-FLEXGEMM=false
-NVDIFFRAST=false
-NVDIFFREC=false
-ERROR=false
-
-
-if [ "$#" -eq 1 ] ; then
-    HELP=true
-fi
-
-while true ; do
-    case "$1" in
-        -h|--help) HELP=true ; shift ;;
-        --new-env) NEW_ENV=true ; shift ;;
-        --basic) BASIC=true ; shift ;;
-        --flash-attn) FLASHATTN=true ; shift ;;
-        --cumesh) CUMESH=true ; shift ;;
-        --o-voxel) OVOXEL=true ; shift ;;
-        --flexgemm) FLEXGEMM=true ; shift ;;
-        --nvdiffrast) NVDIFFRAST=true ; shift ;;
-        --nvdiffrec) NVDIFFREC=true ; shift ;;
-        --) shift ; break ;;
-        *) ERROR=true ; break ;;
+if (($# == 0)); then usage; exit 0; fi
+declare -A selected=()
+for option in "$@"; do
+    case "$option" in
+        -h|--help) usage; exit 0 ;;
+        --new-env|--basic|--flash-attn|--cumesh|--o-voxel|--flexgemm|--nvdiffrast|--nvdiffrec)
+            selected["${option#--}"]=1 ;;
+        *) echo "Unknown option: $option" >&2; exit 2 ;;
     esac
 done
-
-if [ "$ERROR" = true ] ; then
-    echo "Error: Invalid argument"
-    HELP=true
-fi
-
-if [ "$HELP" = true ] ; then
-    echo "Usage: setup.sh [OPTIONS]"
-    echo "Options:"
-    echo "  -h, --help              Display this help message"
-    echo "  --new-env               Create a new conda environment"
-    echo "  --basic                 Install basic dependencies"
-    echo "  --flash-attn            Install flash-attention"
-    echo "  --cumesh                Install cumesh"
-    echo "  --o-voxel               Install o-voxel"
-    echo "  --flexgemm              Install flexgemm"
-    echo "  --nvdiffrast            Install nvdiffrast"
-    echo "  --nvdiffrec             Install nvdiffrec"
-    return
-fi
-
-# Get system information
-WORKDIR=$(pwd)
-if command -v nvidia-smi > /dev/null; then
-    PLATFORM="cuda"
-elif command -v rocminfo > /dev/null; then
-    PLATFORM="hip"
-else
-    echo "Error: No supported GPU found"
-    exit 1
-fi
-
-if [ "$NEW_ENV" = true ] ; then
-    conda create -n trellis2 python=3.10
+[[ $(uname -s) == Linux ]] || { echo 'Use Linux with CUDA; see docs/INSTALLATION.md for Windows limits.' >&2; exit 1; }
+command -v nvidia-smi >/dev/null || { echo 'NVIDIA driver/nvidia-smi is required.' >&2; exit 1; }
+repo_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+cd "$repo_dir"
+if [[ ${selected[new-env]:-0} == 1 ]]; then
+    command -v conda >/dev/null || { echo 'conda is required for --new-env.' >&2; exit 1; }
+    source "$(conda info --base)/etc/profile.d/conda.sh"
+    conda create -y -n trellis2 python=3.11
     conda activate trellis2
-    if [ "$PLATFORM" = "cuda" ] ; then
-        pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
-    elif [ "$PLATFORM" = "hip" ] ; then
-        pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/rocm6.2.4
+    python -m pip install torch==2.8.0 torchvision==0.23.0 --index-url https://download.pytorch.org/whl/cu128
+fi
+if [[ ${selected[basic]:-0} == 1 ]]; then
+    python -m pip install imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh \
+        transformers==4.57.3 gradio==6.0.1 tensorboard pandas lpips zstandard pillow kornia timm
+    python -m pip install 'git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8'
+fi
+if [[ ${selected[flash-attn]:-0} == 1 ]]; then
+    python -m pip install packaging psutil
+    python -m pip install flash-attn==2.8.3 --no-build-isolation
+fi
+
+build_dir=''
+build_extension() {
+    local name=$1 url=$2 ref=$3
+    command -v nvcc >/dev/null || { echo 'CUDA Toolkit (nvcc) is required to build extensions.' >&2; exit 1; }
+    if [[ -z $build_dir ]]; then
+        build_dir=$(mktemp -d "${TMPDIR:-/tmp}/fast-trellis2-build.XXXXXXXX")
+        echo "Retaining extension sources at $build_dir"
     fi
-fi
-
-if [ "$BASIC" = true ] ; then
-    pip install imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh transformers gradio==6.0.1 tensorboard pandas lpips zstandard
-    pip install git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8
-    sudo apt install -y libjpeg-dev
-    pip install pillow-simd
-    pip install kornia timm
-fi
-
-if [ "$FLASHATTN" = true ] ; then
-    if [ "$PLATFORM" = "cuda" ] ; then
-        pip install flash-attn==2.7.3
-    elif [ "$PLATFORM" = "hip" ] ; then
-        echo "[FLASHATTN] Prebuilt binaries not found. Building from source..."
-        mkdir -p /tmp/extensions
-        git clone --recursive https://github.com/ROCm/flash-attention.git /tmp/extensions/flash-attention
-        cd /tmp/extensions/flash-attention
-        git checkout tags/v2.7.3-cktile
-        GPU_ARCHS=gfx942 python setup.py install #MI300 series
-        cd $WORKDIR
+    if [[ $ref == HEAD ]]; then
+        git clone --recursive "$url" "$build_dir/$name"
     else
-        echo "[FLASHATTN] Unsupported platform: $PLATFORM"
+        git clone --recursive --branch "$ref" "$url" "$build_dir/$name"
     fi
+    echo "$name source: $(git -C "$build_dir/$name" rev-parse HEAD)"
+    python -m pip install "$build_dir/$name" --no-build-isolation
+}
+[[ ${selected[nvdiffrast]:-0} == 0 ]] || build_extension nvdiffrast https://github.com/NVlabs/nvdiffrast.git v0.4.0
+[[ ${selected[nvdiffrec]:-0} == 0 ]] || build_extension nvdiffrec https://github.com/JeffreyXiang/nvdiffrec.git renderutils
+[[ ${selected[cumesh]:-0} == 0 ]] || build_extension CuMesh https://github.com/JeffreyXiang/CuMesh.git HEAD
+[[ ${selected[flexgemm]:-0} == 0 ]] || build_extension FlexGEMM https://github.com/JeffreyXiang/FlexGEMM.git HEAD
+if [[ ${selected[o-voxel]:-0} == 1 ]]; then
+    command -v nvcc >/dev/null || { echo 'CUDA Toolkit (nvcc) is required for o-voxel.' >&2; exit 1; }
+    python -m pip install "$repo_dir/o-voxel" --no-build-isolation
 fi
-
-if [ "$NVDIFFRAST" = true ] ; then
-    if [ "$PLATFORM" = "cuda" ] ; then
-        mkdir -p /tmp/extensions
-        git clone -b v0.4.0 https://github.com/NVlabs/nvdiffrast.git /tmp/extensions/nvdiffrast
-        pip install /tmp/extensions/nvdiffrast --no-build-isolation
-    else
-        echo "[NVDIFFRAST] Unsupported platform: $PLATFORM"
-    fi
-fi
-
-if [ "$NVDIFFREC" = true ] ; then
-    if [ "$PLATFORM" = "cuda" ] ; then
-        mkdir -p /tmp/extensions
-        git clone -b renderutils https://github.com/JeffreyXiang/nvdiffrec.git /tmp/extensions/nvdiffrec
-        pip install /tmp/extensions/nvdiffrec --no-build-isolation
-    else
-        echo "[NVDIFFREC] Unsupported platform: $PLATFORM"
-    fi
-fi
-
-if [ "$CUMESH" = true ] ; then
-    mkdir -p /tmp/extensions
-    git clone https://github.com/JeffreyXiang/CuMesh.git /tmp/extensions/CuMesh --recursive
-    pip install /tmp/extensions/CuMesh --no-build-isolation
-fi
-
-if [ "$FLEXGEMM" = true ] ; then
-    mkdir -p /tmp/extensions
-    git clone https://github.com/JeffreyXiang/FlexGEMM.git /tmp/extensions/FlexGEMM --recursive
-    pip install /tmp/extensions/FlexGEMM --no-build-isolation
-fi
-
-if [ "$OVOXEL" = true ] ; then
-    mkdir -p /tmp/extensions
-    cp -r o-voxel /tmp/extensions/o-voxel
-    pip install /tmp/extensions/o-voxel --no-build-isolation
-fi
+echo 'Selected installation stages completed.'

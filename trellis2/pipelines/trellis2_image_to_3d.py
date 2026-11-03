@@ -541,6 +541,11 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             )
         return out_mesh
     
+    def configure_profile(self, profile="native", pipeline_type=None):
+        """Select a named inference profile between generation requests."""
+        from .profiles import configure_profile
+        return configure_profile(self, profile, pipeline_type)
+
     def enable_sage_attention(self, mode="auto", pipeline_type=None, include_cross=False, compile_norms=False):
         """Opt into Sage attention on the final shape/texture flow models.
 

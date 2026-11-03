@@ -1,0 +1,22 @@
+{
+  "python": "3.11.9",
+  "os": "Windows",
+  "os_release": "10",
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "cuda": "12.8",
+  "packages": {
+    "torch": "2.8.0+cu128",
+    "torchvision": "0.23.0+cu128",
+    "transformers": "4.57.3",
+    "flash-attn": "2.8.3",
+    "sageattention": "2.2.0+cu128torch2.8.0.post3",
+    "triton-windows": "3.4.0.post21",
+    "numpy": "2.4.6",
+    "pillow": "13.0.0",
+    "trimesh": "5.2.0",
+    "nvdiffrast": "0.4.0",
+    "cumesh": "0.0.1",
+    "flex_gemm": "0.0.1"
+  },
+  "scope": "Recorded compatibility environment, not a portable lockfile"
+}

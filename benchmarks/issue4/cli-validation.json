@@ -1,0 +1,36 @@
+{
+  "version": "0.2.0",
+  "profile": "sage-fast",
+  "model": "microsoft/TRELLIS.2-4B@af44b45f2e35",
+  "pipeline": "1024_cascade",
+  "seed": 42,
+  "step_override": null,
+  "image": "issue4-stool-preprocessed.png (not redistributed)",
+  "output": "stool-sage-fast.glb",
+  "preprocessed": true,
+  "raw_vertices": 5510096,
+  "raw_faces": 11035188,
+  "export_faces_target": 60000,
+  "texture_size": 1024,
+  "remesh": false,
+  "torch": "2.8.0+cu128",
+  "cuda": "12.8",
+  "gpu": "NVIDIA GeForce RTX 4060",
+  "load_seconds": 0.002704399870708585,
+  "generation_seconds": 215.14114670013078,
+  "export_seconds": 20.560385799966753,
+  "timing_scope": "CUDA-synchronized CLI wall time; generation includes preprocessing/conditioning/decoding and any first-use compilation",
+  "compatibility_adapter": "Windows 8GB stage-loading factory; public CLI and profile code; documented render/export fallback",
+  "glb_validation": {
+    "magic": "glTF",
+    "version": 2,
+    "bytes": 2511000,
+    "sha256": "1679b26c9cdb9ac92b0129b1c33868112f434b7a63b4c9ee3be2cd470a35e5c4",
+    "faces": 58797,
+    "images": 2,
+    "embedded_images": true,
+    "extensions_used": [
+      "EXT_texture_webp"
+    ]
+  }
+}

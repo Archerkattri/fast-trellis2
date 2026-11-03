@@ -1,0 +1,43 @@
+{
+  "model": "TRELLIS-image-large",
+  "mode": "fast",
+  "seed": 42,
+  "sampler_params": {
+    "ss": {
+      "steps": 25,
+      "cfg_strength": 5.0,
+      "cfg_interval": [
+        0.5,
+        1.0
+      ],
+      "rescale_t": 3.0
+    },
+    "slat": {
+      "steps": 25,
+      "cfg_strength": 5.0,
+      "cfg_interval": [
+        0.5,
+        1.0
+      ],
+      "rescale_t": 3.0
+    }
+  },
+  "runtime": "Windows, spconv-cu126 2.3.8, FlashAttention, one model resident at a time",
+  "scope": "Generation excludes initial image preprocessing and DINO conditioning; model loading included",
+  "sampling_wall_seconds": 30.008500199997798,
+  "decode_seconds": 6.3943166001699865,
+  "generation_seconds": 37.81846390012652,
+  "stage_timings": [
+    {
+      "seconds": 3.7009233999997377,
+      "activated_steps": null
+    },
+    {
+      "seconds": 4.663232600083575,
+      "activated_steps": null
+    }
+  ],
+  "sampler_seconds": 8.364156000083312,
+  "vertices": 612307,
+  "faces": 1223800
+}
