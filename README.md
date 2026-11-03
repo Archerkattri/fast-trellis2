@@ -187,8 +187,9 @@ See `example.py` (stock) and `example_faster.py` (accelerated).
 ### Quality-first acceleration
 
 For the reported 12-step `1024_cascade` quality regression, use fresh native
-model evaluations with SageAttention self-attention on the final shape/texture
-flow models. The coarse cascade stages, cross-attention, model weights and Euler
+model evaluations with SageAttention on the final shape/texture flow models.
+The faster `sage-fast` profile also accelerates cross-attention and compiles
+normalization kernels. The coarse cascade stages, model weights and Euler
 schedule retain their native configuration. This avoids stale velocity reuse.
 
 Install the optional package in an existing CUDA environment, following the
@@ -196,7 +197,7 @@ Install the optional package in an existing CUDA environment, following the
 
 ```bash
 pip install sageattention==2.2.0 --no-build-isolation
-python example_faster.py --attention sage --image path/to/input.png
+python example_faster.py --attention sage-fast --image path/to/input.png
 ```
 
 Windows requires a build matching PyTorch/CUDA; the tested build and environment
@@ -210,21 +211,30 @@ from trellis2.pipelines import Trellis2ImageTo3DPipeline
 
 pipeline = Trellis2ImageTo3DPipeline.from_pretrained("microsoft/TRELLIS.2-4B")
 pipeline.cuda()
-pipeline.enable_sage_attention(mode="auto", pipeline_type="1024_cascade")
+pipeline.enable_sage_attention(
+    mode="auto", pipeline_type="1024_cascade",
+    include_cross=True, compile_norms=True)
 mesh = pipeline.run(Image.open("input.png"), pipeline_type="1024_cascade")[0]
 ```
 
+Use `--attention sage` for self-attention acceleration without compilation.
 `mode="fp16pv"` selects higher arithmetic precision for the attention value
-product; `mode=None` restores native self-attention. The method selects kernels
-only; it does not enable or disable a caller's sampler caches. The example's
-`--attention sage` profile explicitly selects native samplers.
+product; `mode=None` restores native attention and normalization. The method
+selects kernels only; it does not enable or disable a caller's sampler caches.
+Both CLI Sage profiles explicitly select native samplers. Compiled normalization
+requires a working PyTorch CUDA compiler/Triton installation and adds first-use
+compilation time; the [validation record](docs/ISSUE-4-QUALITY-PROFILE.md) reports
+that overhead separately.
 
-On the uploaded stool, seed 42, the measured sampler time decreased from 195.19s
-to 153.99s; generation including loading and raw decoding decreased from 271.24s
-to 227.67s. Geometry reference Fscore was 1.000 and six-view texture PSNR 32.76dB,
-close to the native repeat-render comparison of 33.25dB. These measurements use
-the documented RTX 4060 compatibility runtime. SageAttention uses approximate
+On the uploaded stool, seeds 42/43, `sage-fast` reduced sampler time from
+195/199s native to 135/135s, versus 154/156s for the earlier Sage profile.
+Generation including loading and raw decoding decreased from 271/290s native
+to 214/224s. Geometry reference Fscore was 1.0000/.9998 and six-view texture PSNR
+32.46/32.21dB. These are warm-compiler-cache results on the documented RTX 4060
+compatibility runtime, one image and two seeds. SageAttention uses approximate
 low-precision attention internally; this is not a claim of bitwise equivalence.
+The faster profile changes some PBR attributes more than plain `sage`; see the
+material-attribute results before choosing it for material-sensitive work.
 
 ### Short schedules and quality regression (#4)
 

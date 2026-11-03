@@ -69,14 +69,20 @@ for backend in ['sage','sage_fp16pv']:
 modules=importlib.import_module('trellis2.modules.attention.modules')
 model=torch.nn.Module()
 block=torch.nn.Module()
-block.self_attn=modules.MultiHeadAttention(128,2,type='self')
-block.cross_attn=modules.MultiHeadAttention(128,2,ctx_channels=128,type='cross')
+block.self_attn=modules.MultiHeadAttention(128,2,type='self',qk_rms_norm=True)
+block.cross_attn=modules.MultiHeadAttention(128,2,ctx_channels=128,type='cross',qk_rms_norm=True)
 model.blocks=torch.nn.ModuleList([block])
 weights={key:value.clone() for key,value in model.state_dict().items()}
 assert sage.set_sage_self_attention(model)==1
 assert block.self_attn.attn_backend=='sage' and not hasattr(block.cross_attn,'attn_backend')
 sage.set_sage_self_attention(model,None)
 assert block.self_attn.attn_backend is None
+sage.set_sage_attention(model,include_cross=True)
+assert block.self_attn.attn_backend==block.cross_attn.attn_backend=='sage'
+sage.set_sage_attention(model,include_cross=False)
+assert block.cross_attn.attn_backend is None
+sage.set_sage_attention(model,None,include_cross=True)
+assert block.self_attn.attn_backend is None and block.cross_attn.attn_backend is None
 assert all(torch.equal(value,model.state_dict()[key]) for key,value in weights.items())
 sage.sage_attention=real_sage
 if args.device=='cpu':
@@ -89,12 +95,16 @@ if args.device=='cpu':
            for stage in ['shape','tex'] for resolution in [512,1024]}
     owner=types.SimpleNamespace(models=flows,default_pipeline_type='1024_cascade')
     configure=scope['enable_sage_attention']
-    configure(owner,pipeline_type='512')
-    configure(owner,pipeline_type='1024_cascade')
+    configure(owner,pipeline_type='512',include_cross=True,compile_norms=True)
+    configure(owner,pipeline_type='1024_cascade',include_cross=True,compile_norms=True)
     for name,flow in flows.items():
         assert flow.blocks[0].self_attn.attn_backend==('sage' if name.endswith('1024') else None)
-        assert not hasattr(flow.blocks[0].cross_attn,'attn_backend')
+        assert flow.blocks[0].cross_attn.attn_backend==('sage' if name.endswith('1024') else None)
+        assert flow.blocks[0].self_attn.q_rms_norm.compile_norm==name.endswith('1024')
+    configure(owner,pipeline_type='1024_cascade',include_cross=False)
+    assert all(flow.blocks[0].cross_attn.attn_backend is None for flow in flows.values())
+    assert all(not flow.blocks[0].self_attn.q_rms_norm.compile_norm for flow in flows.values())
     configure(owner,None)
     assert all(flow.blocks[0].self_attn.attn_backend is None for flow in flows.values())
     print('PASS: pipeline selection, 512-to-cascade reconfiguration and disable')
-print(f'PASS: {args.device} dense/ragged QKV dispatch, batch isolation, native default, model weights and cross-attention')
+print(f'PASS: {args.device} dense/ragged QKV dispatch, batch isolation, native default, model weights and cross-attention opt-in')

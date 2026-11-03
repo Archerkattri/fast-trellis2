@@ -5,6 +5,9 @@ from .utils import manual_cast
 
 class LayerNorm32(nn.LayerNorm):
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if getattr(self, 'compile_norm', False) and not torch.is_autocast_enabled():
+            from .fast_norm import compiled_layer_norm
+            return compiled_layer_norm(x, self.weight, self.bias, self.eps)
         x_dtype = x.dtype
         x = manual_cast(x, torch.float32)
         o = super().forward(x)
@@ -29,4 +32,3 @@ class ChannelLayerNorm32(LayerNorm32):
         x = super().forward(x)
         x = x.permute(0, DIM-1, *range(1, DIM-1)).contiguous()
         return x
-    

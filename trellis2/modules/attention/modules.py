@@ -13,6 +13,9 @@ class MultiHeadRMSNorm(nn.Module):
         self.gamma = nn.Parameter(torch.ones(heads, dim))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
+        if getattr(self, 'compile_norm', False):
+            from ..fast_norm import compiled_head_norm
+            return compiled_head_norm(x, self.gamma, self.scale)
         return (F.normalize(x.float(), dim = -1) * self.gamma * self.scale).to(x.dtype)
     
 
@@ -94,9 +97,9 @@ class MultiHeadAttention(nn.Module):
                 q = self.q_rms_norm(q)
                 k, v = kv.unbind(dim=2)
                 k = self.k_rms_norm(k)
-                h = scaled_dot_product_attention(q, k, v)
+                h = scaled_dot_product_attention(q, k, v, backend=getattr(self, 'attn_backend', None))
             else:
-                h = scaled_dot_product_attention(q, kv)
+                h = scaled_dot_product_attention(q, kv, backend=getattr(self, 'attn_backend', None))
         h = h.reshape(B, L, -1)
         h = self.to_out(h)
         return h

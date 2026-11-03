@@ -1,0 +1,31 @@
+{
+  "scope": "Uploaded stool on RTX4060 Windows compatibility runtime, warm compiler caches, native12-step Euler",
+  "results": [
+    {
+      "seed": 42,
+      "native_sampler_seconds": 195.1907182999421,
+      "native_generation_seconds": 271.237985300133,
+      "previous_sage_sampler_seconds": 153.9932572999969,
+      "vertex_fscore_0.005": 1.0,
+      "vertex_chamfer": 8.299516462571391e-05,
+      "mask_iou": 0.9972283375269454,
+      "base_color_psnr": 32.4557650932651,
+      "upper65pct_texture_psnr": 33.33308189442342,
+      "sampler_seconds": 134.69758849963546,
+      "generation_wall_seconds": 214.20432999986224
+    },
+    {
+      "seed": 43,
+      "native_sampler_seconds": 199.36311000026762,
+      "native_generation_seconds": 289.67149239988066,
+      "previous_sage_sampler_seconds": 156.44473879993893,
+      "vertex_fscore_0.005": 0.9997899638924175,
+      "vertex_chamfer": 5.847307892121137e-05,
+      "mask_iou": 0.9967135411155493,
+      "base_color_psnr": 32.20586356441744,
+      "upper65pct_texture_psnr": 32.37555230855937,
+      "sampler_seconds": 135.27148760017008,
+      "generation_wall_seconds": 224.01902500004508
+    }
+  ]
+}

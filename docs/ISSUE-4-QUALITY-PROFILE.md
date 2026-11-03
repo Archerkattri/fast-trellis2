@@ -1,8 +1,9 @@
 # Issue 4: faster inference with native sampling
 
-The recommended quality profile keeps all native Euler evaluations and uses
-[SageAttention](https://github.com/thu-ml/SageAttention) for self-attention in the
-final shape and texture flow models. Coarse cascade stages, cross-attention,
+The recommended quality profiles keep all native Euler evaluations and use
+[SageAttention](https://github.com/thu-ml/SageAttention) in the final shape and
+texture flow models. `sage` selects self-attention; `sage-fast` also accelerates
+cross-attention and compiles normalization kernels. Coarse cascade stages,
 sampler schedules, guidance and model weights retain their native configuration.
 
 This profile addresses the quality problem by avoiding velocity forecasting.
@@ -39,7 +40,61 @@ them and retained scores across pipeline reuse. Commit `397ac66` bypasses those
 unused scores and clears prior-run scores. The focused check preserves occupancy
 coordinates and RNG state and covers sequential 512/cascade runs.
 
-## Measured results
+## Final speed round: `sage-fast`
+
+Profiling identified additional time in cross-attention and repeated
+normalization/casting. The final profile adds Sage cross-attention and compiled
+LayerNorm/head-normalization leaves on the final shape/texture flows. It retains
+all native sampling evaluations and full native coarse cascade stages.
+
+| Seed | Native sampler | Earlier `sage` sampler | `sage-fast` sampler | Native / final generation | Geometry Fscore | Whole/crop PSNR |
+|---|---:|---:|---:|---:|---:|---:|
+| 42 | 195.19s | 153.99s | 134.70s | 271.24 / 214.20s | 1.000000 | 32.46 / 33.33 dB |
+| 43 | 199.36s | 156.44s | 135.27s | 289.67 / 224.02s | .999790 | 32.21 / 32.38 dB |
+
+This is 12–14% less sampling time than the earlier Sage profile and 31–32% less
+than native TRELLIS.2. Generation latency is 21–23% lower than native. The image,
+hardware, reference meshes, camera/decimation procedure and metric limits are the
+same as the original table below. Geometry Fscore near 1 does not imply identical
+meshes or latents. These remain one image, two seeds, and exploratory timings.
+The [final speed/quality data](issue-4-final-speed-results.json) retain unrounded
+values alongside the reference and earlier-profile sampling times.
+
+**Compiler caches were warm for these full runs.** In the isolated texture test,
+compiled normalization took 60.20s on its first invocation versus 39.03s on its
+second, compared with 45.30s for the earlier uncompiled Sage profile. That is
+about 21s of observed first-use overhead in that stage; it is not a measured
+whole-pipeline cold-start bound. First use, a different shape, a toolchain update
+or another device can add compilation time. Existing caches were preserved.
+Use plain `--attention sage` to avoid normalization compilation.
+
+The separate texture-stage cross-attention test took 41.93s versus 45.30s.
+An attempted fixed-conditioning projection cache grew memory instead of giving
+reliable reuse because the model casts conditioning into new tensors each time.
+It was stopped and rejected; no projection cache was shipped. The final profile
+does not cache denoising predictions or conditioning projections.
+
+Final-profile decoded PBR attributes at exact shared voxel coordinates:
+
+| Seed | Shared native coordinates | Base-color RMSE | Metallic RMSE | Roughness RMSE | Alpha RMSE |
+|---|---:|---:|---:|---:|---:|
+| 42 | 95.53% | .00509 | .04630 | .01394 | .00943 |
+| 43 | 97.06% | .00690 | .03902 | .00795 | .02305 |
+
+The [complete final material results](issue-4-final-material-attributes.json)
+include coverage of both meshes and maximum local errors. These comparisons
+exclude unshared coordinates. Metallic/alpha differences are larger than in the
+earlier self-attention profile; the low base-color render error does not establish
+identical specular appearance. Keep plain `sage` available when these material
+differences matter. Neither profile is lossless.
+
+The final public implementation passed real CUDA attention/normalization checks
+and a complete seed42 sampler rerun. Both shape and texture coordinates/features
+matched the measured combined candidate exactly (maximum difference zero). That
+public rerun took133.84s in sampling; its identical previously decoded outputs
+were reused rather than rendering the same latents again.
+
+## Original self-attention profile results
 
 Uploaded stool input, `1024_cascade`, all 12 native steps, two seeds. These are
 paired runs on the available RTX 4060 8GB Windows compatibility runtime described
@@ -80,9 +135,9 @@ Local maximum differences can be larger; see the
 [complete material-attribute results](issue-4-material-attributes.json).
 The profile is not lossless even where rendered fidelity is close to native.
 
-| Native TRELLIS.2 | Previous experimental cache | Sage profile |
-|---|---|---|
-| ![Native stool render](images/issue-4-native.png) | ![Previous cache stool render](images/issue-4-legacy-cache.png) | ![Sage stool render](images/issue-4-sage.png) |
+| Native TRELLIS.2 | Previous experimental cache | Sage self-attention | Sage fast |
+|---|---|---|---|
+| ![Native stool render](images/issue-4-native.png) | ![Previous cache stool render](images/issue-4-legacy-cache.png) | ![Sage stool render](images/issue-4-sage.png) | ![Sage fast stool render](images/issue-4-sage-fast.png) |
 
 Images are the same seed42 camera and rendering setup. The previous cache took
 58.37s in sampling but scored .359 geometry Fscore and 15.41/19.75dB texture
@@ -90,9 +145,11 @@ PSNR. Its latency is not a native-quality baseline.
 
 ## Implementation and checks
 
-`pipeline.enable_sage_attention()` selects only final-flow self-attention.
-Reconfiguring a reused pipeline clears Sage selections from former final stages
-that become coarse stages. Passing `mode=None` restores native self-attention.
+`pipeline.enable_sage_attention()` selects final-flow self-attention by default;
+`include_cross=True` adds cross-attention and `compile_norms=True` enables compiled
+normalization leaves. Reconfiguring a reused pipeline clears attention and
+normalization selections from former final stages that become coarse stages.
+Passing `mode=None` restores native attention and normalization.
 The implementation sets per-module backend choices; it does not replace global
 imports or alter checkpoint parameters. The CLI profile explicitly selects
 native samplers, so every velocity and guidance rescale is freshly evaluated.
@@ -125,7 +182,9 @@ package to exercise dispatch and packing. CUDA checks exercise the real kernels:
 ```bash
 python tools/verify_cascade_scores.py
 python tools/verify_sage_attention.py
+python tools/verify_fast_norm.py
 python tools/verify_sage_attention.py --device cuda
+python tools/verify_fast_norm.py --device cuda
 ```
 
 ## Usage and installation
@@ -135,14 +194,24 @@ In an existing supported CUDA installation, follow the
 
 ```bash
 pip install sageattention==2.2.0 --no-build-isolation
-python example_faster.py --attention sage --image path/to/input.png
+python example_faster.py --attention sage-fast --image path/to/input.png
 ```
 
 For API usage, load the native pretrained pipeline, call `pipeline.cuda()` as a
-separate statement, then `pipeline.enable_sage_attention(mode="auto")`. This
-pipeline's `cuda()` method returns `None`; chaining it into assignment is invalid.
+separate statement, then configure the faster profile:
+
+```python
+pipeline.enable_sage_attention(mode="auto", include_cross=True, compile_norms=True)
+```
+
+This pipeline's `cuda()` method returns `None`; chaining it into assignment is invalid.
 The kernel-selection method preserves a caller's sampler configuration; use the
-native samplers for this profile. The CLI configures that profile explicitly.
+native samplers for these profiles. The CLI configures them explicitly.
+Use `--attention sage` if you prefer to avoid PyTorch compilation. Compilation
+requires CUDA and a working PyTorch/Triton toolchain; first-use compilation can
+add latency even though later generations are faster. The compiled leaves are
+LayerNorm and head normalization only, not a captured full model. LayerNorm
+preserves its existing path under autocast. No-grad inference is required.
 
 The Windows validation used the matching
 [community PyTorch 2.8/cu128 build](https://github.com/woct0rdho/SageAttention/releases/tag/v2.2.0-windows.post3),

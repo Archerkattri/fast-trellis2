@@ -1,4 +1,4 @@
-"""Optional inference-only SageAttention support for selected flow self-attention."""
+"""Optional inference-only SageAttention support for selected flow attention."""
 import torch
 
 
@@ -12,7 +12,7 @@ def sage_attention(q, k, v, backend="sage"):
     except ImportError as error:
         raise ImportError(
             "Install the optional SageAttention package for your PyTorch/CUDA version "
-            "before enabling Sage self-attention."
+            "before enabling Sage attention."
         ) from error
     if backend == "sage_fp16pv":
         return sageattention.sageattn_qk_int8_pv_fp16_cuda(
@@ -22,11 +22,18 @@ def sage_attention(q, k, v, backend="sage"):
 
 
 def set_sage_self_attention(flow_model, mode="auto"):
-    """Select self-attention kernels on one flow model; None restores its backend.
+    """Select Sage self-attention with native cross-attention on one flow model.
 
-    Cross-attention, decoders, sampler steps and model parameters are untouched.
+    None restores native self-attention. Model weights and decoders are untouched.
     Sage uses approximate low-precision attention; validate on the target GPU.
     """
+    return set_sage_attention(flow_model, mode)
+
+
+def set_sage_attention(flow_model, mode="auto", include_cross=False):
+    """Select flow attention kernels, with optional cross-attention acceleration."""
+    if not isinstance(include_cross, bool):
+        raise TypeError("include_cross must be bool")
     if mode not in (None, "auto", "fp16pv"):
         raise ValueError("mode must be None, 'auto', or 'fp16pv'")
     blocks = getattr(flow_model, "blocks", None)
@@ -37,7 +44,16 @@ def set_sage_self_attention(flow_model, mode="auto"):
         raise TypeError("Expected transformer blocks with self_attn modules")
     if any(getattr(module, "attn_mode", None) != "full" for module in attention):
         raise ValueError("Sage self-attention requires full-attention blocks")
+    cross_attention = [getattr(block, "cross_attn", None) for block in blocks]
+    if include_cross and any(module is None for module in cross_attention):
+        raise TypeError("Expected transformer blocks with cross_attn modules")
     backend = None if mode is None else ("sage" if mode == "auto" else "sage_fp16pv")
     for module in attention:
         module.attn_backend = backend
+    for module in cross_attention:
+        if module is not None:
+            if include_cross:
+                module.attn_backend = backend
+            elif getattr(module, "attn_backend", None) in ("sage", "sage_fp16pv"):
+                module.attn_backend = None
     return len(attention)

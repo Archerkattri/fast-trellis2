@@ -7,6 +7,7 @@ delta-cache with token carving on the structured-latent (SLaT) stages.
 Schedules of 12 steps or fewer default to full evaluation (issue #4).
 See README.md for the explicit experimental caching opt-in and its quality risk.
 Use --attention sage for native sampling with SageAttention self-attention.
+Use --attention sage-fast to add cross-attention and compiled normalization.
 
 Backend selection via environment variables, set before launch:
     SPARSE_CONV_BACKEND=spconv SPCONV_ALGO=native python example_faster.py
@@ -16,7 +17,7 @@ def main():
     import os
 
     parser = argparse.ArgumentParser(description="TRELLIS.2 inference with optional acceleration")
-    parser.add_argument('--attention', choices=['native', 'sage', 'sage_fp16pv'], default='native')
+    parser.add_argument('--attention', choices=['native', 'sage', 'sage_fp16pv', 'sage-fast'], default='native')
     parser.add_argument('--image', default='assets/example_image/T.png')
     parser.add_argument('--seed', type=int, default=42)
     args = parser.parse_args()
@@ -64,7 +65,10 @@ def main():
                     samplers.FlowEulerGuidanceIntervalSampler(sigma_min=previous.sigma_min))
         pipeline.enable_faster = False
         pipeline.enable_sage_attention(
-            'auto' if args.attention == 'sage' else 'fp16pv', pipeline_type='1024_cascade')
+            'fp16pv' if args.attention == 'sage_fp16pv' else 'auto',
+            pipeline_type='1024_cascade',
+            include_cross=args.attention == 'sage-fast',
+            compile_norms=args.attention == 'sage-fast')
 
     # 4. Load image & run.
     image = Image.open(args.image)

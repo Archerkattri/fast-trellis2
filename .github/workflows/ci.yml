@@ -30,3 +30,4 @@ jobs:
         run: |
           python tools/verify_cascade_scores.py
           python tools/verify_sage_attention.py
+          python tools/verify_fast_norm.py

@@ -1,0 +1,56 @@
+[
+  {
+    "seed": 42,
+    "shared_voxels": 5271990,
+    "native_voxels": 5518908,
+    "sage_voxels": 5510096,
+    "native_coverage": 0.9552596274480386,
+    "sage_coverage": 0.9567873227617086,
+    "scope": "Decoded PBR attributes at exact shared voxel coordinates; unshared voxels excluded",
+    "attributes": {
+      "base_color": {
+        "rmse": 0.005090310013388523,
+        "max_abs": 0.2861328125
+      },
+      "metallic": {
+        "rmse": 0.04629616756116037,
+        "max_abs": 0.21142578125
+      },
+      "roughness": {
+        "rmse": 0.013938804973932203,
+        "max_abs": 0.06640625
+      },
+      "alpha": {
+        "rmse": 0.009426802525015368,
+        "max_abs": 0.37255859375
+      }
+    }
+  },
+  {
+    "seed": 43,
+    "shared_voxels": 7907345,
+    "native_voxels": 8147281,
+    "sage_voxels": 8147511,
+    "native_coverage": 0.9705501749602107,
+    "sage_coverage": 0.9705227768333176,
+    "scope": "Decoded PBR attributes at exact shared voxel coordinates; unshared voxels excluded",
+    "attributes": {
+      "base_color": {
+        "rmse": 0.006900138404455348,
+        "max_abs": 0.2509765625
+      },
+      "metallic": {
+        "rmse": 0.03902149713050601,
+        "max_abs": 0.294921875
+      },
+      "roughness": {
+        "rmse": 0.007954639458745395,
+        "max_abs": 0.1591796875
+      },
+      "alpha": {
+        "rmse": 0.023050735675223515,
+        "max_abs": 0.384521484375
+      }
+    }
+  }
+]

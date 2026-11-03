@@ -4,7 +4,10 @@
 
 Update: a [quality-first SageAttention profile](ISSUE-4-QUALITY-PROFILE.md) now
 retains native sampling and produces near-native renders with about21% lower
-sampler time on two tested seeds. The following sections retain the earlier
+sampler time on two tested seeds. The final `sage-fast` round adds cross-attention
+and compiled normalization, reaching31–32% lower sampler time with warm compiler
+caches; see the same quality-profile record for timings and startup costs.
+The following sections retain the earlier
 cache experiments and their limits. The original aggressive cache's58s latency
 has not been recovered at native quality; RTX3090 confirmation remains pending.
 

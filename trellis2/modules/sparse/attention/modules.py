@@ -15,6 +15,11 @@ class SparseMultiHeadRMSNorm(nn.Module):
         self.gamma = nn.Parameter(torch.ones(heads, dim))
 
     def forward(self, x: Union[VarLenTensor, torch.Tensor]) -> Union[VarLenTensor, torch.Tensor]:
+        if getattr(self, 'compile_norm', False):
+            from ...fast_norm import compiled_head_norm
+            if isinstance(x, VarLenTensor):
+                return x.replace(compiled_head_norm(x.feats, self.gamma, self.scale))
+            return compiled_head_norm(x, self.gamma, self.scale)
         x_type = x.dtype
         x = x.float()
         if isinstance(x, VarLenTensor):
@@ -133,9 +138,9 @@ class SparseMultiHeadAttention(nn.Module):
                 q = self.q_rms_norm(q)
                 k, v = kv.unbind(dim=-3)
                 k = self.k_rms_norm(k)
-                h = sparse_scaled_dot_product_attention(q, k, v)
+                h = sparse_scaled_dot_product_attention(q, k, v, backend=getattr(self, 'attn_backend', None))
             else:
-                h = sparse_scaled_dot_product_attention(q, kv)
+                h = sparse_scaled_dot_product_attention(q, kv, backend=getattr(self, 'attn_backend', None))
         h = self._reshape_chs(h, (-1,))
         h = self._linear(self.to_out, h)
         return h
