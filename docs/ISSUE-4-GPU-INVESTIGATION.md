@@ -121,3 +121,92 @@ Raw traces, configs, logs, decoded tensors and evaluation scripts are retained i
 the research workspace `projects/personal-projects/fast-trellis2-issue-4` and on
 the school host under `C:\Users\kr881817\fast-trellis2-issue-4`. This document is
 an investigation record, not a self-contained supported Windows installation.
+
+## Internal-feature follow-up, 3 November 2026
+
+The next experiment reused the residual of the middle transformer blocks rather
+than forecasting the final velocity. Input projection, timestep embedding, first
+block, last block and output projection ran at every step. Each guidance branch
+had an independent cache; a guidance transition discarded the cache and forced
+refresh. Coordinate support was checked before reuse. Time modulation inside
+the skipped middle blocks was not recalculated.
+
+Full-refresh hook controls matched the saved FP16 native final latents exactly
+for both shape1024 and texture1024 (maximum difference zero). Candidate runs
+used their own evolving states, not teacher-state replay.
+
+| Stage candidate | Middle refresh steps | Stage seconds | Final latent NRMSE | Decoded geometry Fscore |
+|---|---|---:|---:|---:|
+| Shape full control |all12|105.77|0|1.000|
+| Shape residual hold4 |0,4,9,11|35.53|.734|.959|
+| Shape residual hold6 |0,1,4,7,9,11|54.18|.383|.998|
+| Shape linear residual4 |0,1,9,11|35.90|.941|.915|
+| Texture full control |all12|60.90|0|native shape held fixed|
+| Texture residual hold3 |0,7,11|18.75|.360|native shape held fixed|
+| Texture residual hold6 |0,1,4,7,10,11|32.54|.120|native shape held fixed|
+| Texture linear residual3 |0,1,11|18.53|.353|native shape held fixed|
+
+Shape stage ablations start from the saved native512 output/support and native
+1024 noise. Texture stage ablations hold native geometry fixed. The linear
+candidate uses two true residual anchors in actual time, with extrapolation
+ratio bounded to0..1.5. Its refresh schedules differ from the hold candidates;
+these rows do not isolate forecast basis independently of refresh placement.
+
+The texture hold6 ablation scored32.02dB whole-view and32.53dB fixed-crop PSNR;
+hold3 scored21.81/28.67dB and linear3 scored23.60/25.16dB. Native render comparison
+noise is33.25/34.24dB. Large shape latent error did not imply equally large mesh
+error: hold6 reached raw Fscore.997877, Chamfer.00051715 and maskIoU.99032.
+Decoded geometry and downstream texture therefore remain essential checks.
+
+### Complete pipeline check
+
+The combined FP16 candidate kept full sparse structure and full shape512, used
+shape1024 hold6 and texture1024 hold6, and generated texture conditioned on its
+own new shape. It retained all12 Euler steps; only middle-block computation was
+reused. Shape1024 executed the middle at10 of21 guidance-branch invocations;
+texture executed it at6 of12. It is not a reduction to six model invocations.
+
+| Configuration | Sampler seconds | Generation seconds | Raw geometry Fscore | Whole/crop PSNR |
+|---|---:|---:|---:|---:|
+| Original acceleration |58.37|126.45|.359|15.41/19.75|
+| Full native |195.19|271.24|1.000|33.25/34.24|
+| Internal-feature hold6 |116.08|196.70|.998|27.43/28.44|
+
+The combined output has11.649M faces, Chamfer.00051715 and maskIoU.99041. Its
+individual stage times were14.48s SS,15.47s shape512,53.88s shape1024 and32.25s
+texture1024; sampling wall162.73s plus33.97s raw decoding gives196.70s generation.
+These are exploratory same-input timings, not held-out or repeated end-to-end
+benchmarks. Stage timings agree closely with the isolated shape/texture runs.
+
+This is a substantial fidelity improvement over the old acceleration, but its
+sampler takes roughly twice the old acceleration's time. The original latency
+requirement is still unmet. The lower whole/crop texture score in the combined
+run includes geometry displacement and changed conditioning as well as texture
+approximation; the isolated texture score must not be presented as combined
+pipeline fidelity. No production default was changed.
+
+To separate some of those effects, full texture inference was rerun using the
+candidate's exact shape, original image conditioning and original texture noise.
+The cached/full texture comparison on that same geometry scored29.84dB whole-view
+and29.67dB fixed-crop PSNR, with raw geometry identical (Chamfer zero). Original
+native-reference metrics were retained separately. Geometry alignment explains
+part of the combined comparison, but a texture approximation difference remains.
+This is not evidence of lossless texture reuse. No held-out image/seed validation
+or repeated end-to-end timing was claimed, because original-speed acceptance
+still failed on the reproduction input.
+
+An independent rerun of cached texture with the candidate shape reproduced the
+combined pipeline's texture latent exactly (coordinates equal, maximum feature
+difference zero), checking that the conditioning/noise reconstruction used for
+the stage comparison matches the combined run.
+
+### Rejected FP8 implementation
+
+An isolated RTX4060 kernel probe supported E4M3 FP8 with FP16 output. For a
+16384x1536 by1536x6144 matrix multiplication, FP16 took10.14ms, prequantized FP8
+5.02ms, and FP8 including activation quantization6.33ms. This did not translate
+into real-model acceleration. Quantizing the210 large transformer-block linears
+gave full texture62.16s versus60.90s FP16, and cached texture32.96s versus32.54s.
+The cached FP8 shape run produced non-finite output. This implementation was
+rejected; its kernel result is not an inference speedup claim. These results do
+not establish the behavior of other FP8 implementations or other GPUs.
