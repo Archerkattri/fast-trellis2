@@ -541,6 +541,33 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             )
         return out_mesh
     
+    def enable_sage_attention(self, mode="auto", pipeline_type=None):
+        """Opt into Sage self-attention on the final shape/texture flow models.
+
+        Coarse cascade stages and cross-attention retain their native kernels.
+        Pass mode=None to restore native self-attention on the selected models.
+        """
+        from ..modules.attention.sage import set_sage_self_attention
+        kind = pipeline_type or self.default_pipeline_type
+        resolutions = {"512": 512, "1024": 1024, "1024_cascade": 1024, "1536_cascade": 1024}
+        if kind not in resolutions:
+            raise ValueError(f"Invalid pipeline type: {kind}")
+        resolution = resolutions[kind]
+        names = [f"shape_slat_flow_model_{resolution}", f"tex_slat_flow_model_{resolution}"]
+        if any(name not in self.models for name in names):
+            raise ValueError(f"Missing final flow models for {kind}")
+        selected = {name: set_sage_self_attention(self.models[name], mode) for name in names}
+        # Reconfiguring a reused pipeline must not leave Sage active on a
+        # former final stage that is now a coarse cascade stage.
+        for name, model in self.models.items():
+            if name in selected or not name.startswith(('shape_slat_flow_model_', 'tex_slat_flow_model_')):
+                continue
+            for block in getattr(model, 'blocks', []):
+                attention = getattr(block, 'self_attn', None)
+                if getattr(attention, 'attn_backend', None) in ('sage', 'sage_fp16pv'):
+                    attention.attn_backend = None
+        return selected
+
     @torch.no_grad()
     def run(
         self,

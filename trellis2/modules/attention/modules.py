@@ -79,9 +79,9 @@ class MultiHeadAttention(nn.Module):
                         assert phases is not None, "Phases must be provided for RoPE"
                         q = RotaryPositionEmbedder.apply_rotary_embedding(q, phases)
                         k = RotaryPositionEmbedder.apply_rotary_embedding(k, phases)
-                    h = scaled_dot_product_attention(q, k, v)
+                    h = scaled_dot_product_attention(q, k, v, backend=getattr(self, 'attn_backend', None))
                 else:
-                    h = scaled_dot_product_attention(qkv)
+                    h = scaled_dot_product_attention(qkv, backend=getattr(self, 'attn_backend', None))
             elif self.attn_mode == "windowed":
                 raise NotImplementedError("Windowed attention is not yet implemented")
         else:

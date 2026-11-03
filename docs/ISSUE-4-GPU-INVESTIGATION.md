@@ -2,12 +2,19 @@
 
 ## Outcome
 
+Update: a [quality-first SageAttention profile](ISSUE-4-QUALITY-PROFILE.md) now
+retains native sampling and produces near-native renders with about21% lower
+sampler time on two tested seeds. The following sections retain the earlier
+cache experiments and their limits. The original aggressive cache's58s latency
+has not been recovered at native quality; RTX3090 confirmation remains pending.
+
 The uploaded stool input now runs through the learned models and raw mesh decoder
 on the available RTX4060. The original acceleration reproduces visibly damaged
 geometry and mottled texture compared with full Euler in this runtime. No tested
 replacement has demonstrated both native quality and the original speed. The
 short-schedule full-evaluation safeguard remains a mitigation, not the requested
-quality-preserving acceleration fix. Issue4 remains unresolved.
+quality-preserving caching fix. The new profile accelerates self-attention
+inside fresh native evaluations instead.
 
 ## Environment and controls
 

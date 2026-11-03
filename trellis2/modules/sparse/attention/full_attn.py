@@ -10,7 +10,7 @@ __all__ = [
 
 
 @overload
-def sparse_scaled_dot_product_attention(qkv: VarLenTensor) -> VarLenTensor:
+def sparse_scaled_dot_product_attention(qkv: VarLenTensor, *, backend: Optional[str] = None) -> VarLenTensor:
     """
     Apply scaled dot product attention to a sparse tensor.
 
@@ -20,7 +20,7 @@ def sparse_scaled_dot_product_attention(qkv: VarLenTensor) -> VarLenTensor:
     ...
 
 @overload
-def sparse_scaled_dot_product_attention(q: VarLenTensor, kv: Union[VarLenTensor, torch.Tensor]) -> VarLenTensor:
+def sparse_scaled_dot_product_attention(q: VarLenTensor, kv: Union[VarLenTensor, torch.Tensor], *, backend: Optional[str] = None) -> VarLenTensor:
     """
     Apply scaled dot product attention to a sparse tensor.
 
@@ -31,7 +31,7 @@ def sparse_scaled_dot_product_attention(q: VarLenTensor, kv: Union[VarLenTensor,
     ...
 
 @overload
-def sparse_scaled_dot_product_attention(q: torch.Tensor, kv: VarLenTensor) -> torch.Tensor:
+def sparse_scaled_dot_product_attention(q: torch.Tensor, kv: VarLenTensor, *, backend: Optional[str] = None) -> torch.Tensor:
     """
     Apply scaled dot product attention to a sparse tensor.
 
@@ -42,7 +42,7 @@ def sparse_scaled_dot_product_attention(q: torch.Tensor, kv: VarLenTensor) -> to
     ...
 
 @overload
-def sparse_scaled_dot_product_attention(q: VarLenTensor, k: VarLenTensor, v: VarLenTensor) -> VarLenTensor:
+def sparse_scaled_dot_product_attention(q: VarLenTensor, k: VarLenTensor, v: VarLenTensor, *, backend: Optional[str] = None) -> VarLenTensor:
     """
     Apply scaled dot product attention to a sparse tensor.
 
@@ -57,7 +57,7 @@ def sparse_scaled_dot_product_attention(q: VarLenTensor, k: VarLenTensor, v: Var
     ...
 
 @overload
-def sparse_scaled_dot_product_attention(q: VarLenTensor, k: torch.Tensor, v: torch.Tensor) -> VarLenTensor:
+def sparse_scaled_dot_product_attention(q: VarLenTensor, k: torch.Tensor, v: torch.Tensor, *, backend: Optional[str] = None) -> VarLenTensor:
     """
     Apply scaled dot product attention to a sparse tensor.
 
@@ -69,7 +69,7 @@ def sparse_scaled_dot_product_attention(q: VarLenTensor, k: torch.Tensor, v: tor
     ...
 
 @overload
-def sparse_scaled_dot_product_attention(q: torch.Tensor, k: VarLenTensor, v: VarLenTensor) -> torch.Tensor:
+def sparse_scaled_dot_product_attention(q: torch.Tensor, k: VarLenTensor, v: VarLenTensor, *, backend: Optional[str] = None) -> torch.Tensor:
     """
     Apply scaled dot product attention to a sparse tensor.
 
@@ -81,6 +81,7 @@ def sparse_scaled_dot_product_attention(q: torch.Tensor, k: VarLenTensor, v: Var
     ...
 
 def sparse_scaled_dot_product_attention(*args, **kwargs):
+    backend = kwargs.pop('backend', None) or config.ATTN
     arg_names_dict = {
         1: ['qkv'],
         2: ['q', 'kv'],
@@ -169,7 +170,24 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             k = k.reshape(N * L, H, CI)     # [T_KV, H, Ci]
             v = v.reshape(N * L, H, CO)     # [T_KV, H, Co]
 
-    if config.ATTN == 'xformers':
+    if backend in ('sage', 'sage_fp16pv'):
+        from ...attention.sage import sage_attention
+        if num_all_args == 1:
+            q, k, v = qkv.unbind(dim=1)
+        elif num_all_args == 2:
+            k, v = kv.unbind(dim=1)
+        pieces = []
+        q_start = kv_start = 0
+        for q_length, kv_length in zip(q_seqlen, kv_seqlen):
+            pieces.append(sage_attention(
+                q[q_start:q_start+q_length].unsqueeze(0),
+                k[kv_start:kv_start+kv_length].unsqueeze(0),
+                v[kv_start:kv_start+kv_length].unsqueeze(0), backend
+            ).squeeze(0))
+            q_start += q_length
+            kv_start += kv_length
+        out = torch.cat(pieces, dim=0)
+    elif backend == 'xformers':
         if 'xops' not in globals():
             import xformers.ops as xops
         if num_all_args == 1:
@@ -181,7 +199,7 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
         v = v.unsqueeze(0)
         mask = xops.fmha.BlockDiagonalMask.from_seqlens(q_seqlen, kv_seqlen)
         out = xops.memory_efficient_attention(q, k, v, mask)[0]
-    elif config.ATTN == 'flash_attn':
+    elif backend == 'flash_attn':
         if 'flash_attn' not in globals():
             import flash_attn
         cu_seqlens_q = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(q_seqlen), dim=0)]).int().to(device)
@@ -193,7 +211,7 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             out = flash_attn.flash_attn_varlen_kvpacked_func(q, kv, cu_seqlens_q, cu_seqlens_kv, max(q_seqlen), max(kv_seqlen))
         elif num_all_args == 3:
             out = flash_attn.flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max(q_seqlen), max(kv_seqlen))
-    elif config.ATTN == 'flash_attn_3':
+    elif backend == 'flash_attn_3':
         if 'flash_attn_3' not in globals():
             import flash_attn_interface as flash_attn_3
         cu_seqlens_q = torch.cat([torch.tensor([0]), torch.cumsum(torch.tensor(q_seqlen), dim=0)]).int().to(device)
@@ -212,7 +230,7 @@ def sparse_scaled_dot_product_attention(*args, **kwargs):
             max_kv_seqlen = max(kv_seqlen)
         out = flash_attn_3.flash_attn_varlen_func(q, k, v, cu_seqlens_q, cu_seqlens_kv, max_q_seqlen, max_kv_seqlen)
     else:
-        raise ValueError(f"Unknown attention module: {config.ATTN}")
+        raise ValueError(f"Unknown attention module: {backend}")
     
     if s is not None:
         return s.replace(out)

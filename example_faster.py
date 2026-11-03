@@ -6,12 +6,20 @@ TaylorSeer on the sparse-structure (SS) final velocity, plus the easy
 delta-cache with token carving on the structured-latent (SLaT) stages.
 Schedules of 12 steps or fewer default to full evaluation (issue #4).
 See README.md for the explicit experimental caching opt-in and its quality risk.
+Use --attention sage for native sampling with SageAttention self-attention.
 
 Backend selection via environment variables, set before launch:
     SPARSE_CONV_BACKEND=spconv SPCONV_ALGO=native python example_faster.py
 """
 def main():
+    import argparse
     import os
+
+    parser = argparse.ArgumentParser(description="TRELLIS.2 inference with optional acceleration")
+    parser.add_argument('--attention', choices=['native', 'sage', 'sage_fp16pv'], default='native')
+    parser.add_argument('--image', default='assets/example_image/T.png')
+    parser.add_argument('--seed', type=int, default=42)
+    args = parser.parse_args()
 
     os.environ["OPENCV_IO_ENABLE_OPENEXR"] = "1"
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
@@ -39,17 +47,28 @@ def main():
     #    SS stage -> TaylorSeer cache; shape/tex SLaT stages -> easy delta-cache
     #    (with token carving on the shape stage). enable_faster wires the
     #    coords_scores plumbing the carver needs.
-    pipeline.sparse_structure_sampler = samplers.FlowEulerGuidanceIntervalSampler_taylor(
-        sigma_min=pipeline.sparse_structure_sampler.sigma_min)
-    pipeline.shape_slat_sampler = samplers.FlowEulerGuidanceIntervalSampler_faster(
-        sigma_min=pipeline.shape_slat_sampler.sigma_min)
-    pipeline.tex_slat_sampler = samplers.FlowEulerGuidanceIntervalSampler_faster(
-        sigma_min=pipeline.tex_slat_sampler.sigma_min)
-    pipeline.enable_faster = True
+    if args.attention == 'native':
+        pipeline.sparse_structure_sampler = samplers.FlowEulerGuidanceIntervalSampler_taylor(
+            sigma_min=pipeline.sparse_structure_sampler.sigma_min)
+        pipeline.shape_slat_sampler = samplers.FlowEulerGuidanceIntervalSampler_faster(
+            sigma_min=pipeline.shape_slat_sampler.sigma_min)
+        pipeline.tex_slat_sampler = samplers.FlowEulerGuidanceIntervalSampler_faster(
+            sigma_min=pipeline.tex_slat_sampler.sigma_min)
+        pipeline.enable_faster = True
+    else:
+        # This profile accelerates attention and preserves fresh Euler/CFG
+        # evaluation at every step, including full texture conditioning.
+        for stage in ('sparse_structure', 'shape_slat', 'tex_slat'):
+            previous = getattr(pipeline, stage + '_sampler')
+            setattr(pipeline, stage + '_sampler',
+                    samplers.FlowEulerGuidanceIntervalSampler(sigma_min=previous.sigma_min))
+        pipeline.enable_faster = False
+        pipeline.enable_sage_attention(
+            'auto' if args.attention == 'sage' else 'fp16pv', pipeline_type='1024_cascade')
 
     # 4. Load image & run.
-    image = Image.open("assets/example_image/T.png")
-    mesh = pipeline.run(image)[0]
+    image = Image.open(args.image)
+    mesh = pipeline.run(image, seed=args.seed, pipeline_type='1024_cascade')[0]
     mesh.simplify(16777216)  # nvdiffrast vertex limit
 
     # 5. Render video.

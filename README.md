@@ -11,7 +11,7 @@
 </p>
 
 
-**[Fast-TRELLIS](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS)'s training-free acceleration, faithfully ported onto [TRELLIS.2](https://github.com/microsoft/TRELLIS).**
+**[Fast-TRELLIS](https://github.com/wlfeng0509/Fast-SAM3D/tree/Fast-TRELLIS)'s training-free acceleration, ported onto [TRELLIS.2](https://github.com/microsoft/TRELLIS.2).**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](./LICENSE)
 [![base: TRELLIS.2](https://img.shields.io/badge/base-microsoft%2FTRELLIS.2-555.svg?style=flat-square)](https://github.com/microsoft/TRELLIS.2)
@@ -30,8 +30,10 @@
 > token-carved SLaT sampler — see the sibling repo **hermit-trellis2**.
 
 `fast-trellis2` wires Fast-TRELLIS's cross-step caching into TRELLIS.2's three flow-matching
-stages (sparse structure + shape SLaT + texture SLaT). Microsoft TRELLIS.2 model / decoder /
-o-voxel code is left untouched.
+stages (sparse structure + shape SLaT + texture SLaT). Model weights, decoders and
+o-voxel code are unchanged. The optional quality profile uses
+[SageAttention](https://github.com/thu-ml/SageAttention) self-attention kernels
+with native sampling; see [quality-first acceleration](#quality-first-acceleration).
 
 ## When to use this repo
 
@@ -166,7 +168,8 @@ the experimental caching defaults and are not guaranteed to preserve quality.
 ```python
 from trellis2.pipelines import Trellis2ImageTo3DPipeline, samplers
 
-pipeline = Trellis2ImageTo3DPipeline.from_pretrained("microsoft/TRELLIS.2-4B").cuda()
+pipeline = Trellis2ImageTo3DPipeline.from_pretrained("microsoft/TRELLIS.2-4B")
+pipeline.cuda()
 
 pipeline.sparse_structure_sampler = samplers.FlowEulerGuidanceIntervalSampler_taylor(
     sigma_min=pipeline.sparse_structure_sampler.sigma_min)
@@ -181,6 +184,48 @@ mesh = pipeline.run(image)[0]
 
 See `example.py` (stock) and `example_faster.py` (accelerated).
 
+### Quality-first acceleration
+
+For the reported 12-step `1024_cascade` quality regression, use fresh native
+model evaluations with SageAttention self-attention on the final shape/texture
+flow models. The coarse cascade stages, cross-attention, model weights and Euler
+schedule retain their native configuration. This avoids stale velocity reuse.
+
+Install the optional package in an existing CUDA environment, following the
+[SageAttention requirements](https://github.com/thu-ml/SageAttention#installation):
+
+```bash
+pip install sageattention==2.2.0 --no-build-isolation
+python example_faster.py --attention sage --image path/to/input.png
+```
+
+Windows requires a build matching PyTorch/CUDA; the tested build and environment
+are recorded in [the quality-profile validation](docs/ISSUE-4-QUALITY-PROFILE.md).
+
+For API usage with the pretrained native sampler configuration:
+
+```python
+from PIL import Image
+from trellis2.pipelines import Trellis2ImageTo3DPipeline
+
+pipeline = Trellis2ImageTo3DPipeline.from_pretrained("microsoft/TRELLIS.2-4B")
+pipeline.cuda()
+pipeline.enable_sage_attention(mode="auto", pipeline_type="1024_cascade")
+mesh = pipeline.run(Image.open("input.png"), pipeline_type="1024_cascade")[0]
+```
+
+`mode="fp16pv"` selects higher arithmetic precision for the attention value
+product; `mode=None` restores native self-attention. The method selects kernels
+only; it does not enable or disable a caller's sampler caches. The example's
+`--attention sage` profile explicitly selects native samplers.
+
+On the uploaded stool, seed 42, the measured sampler time decreased from 195.19s
+to 153.99s; generation including loading and raw decoding decreased from 271.24s
+to 227.67s. Geometry reference Fscore was 1.000 and six-view texture PSNR 32.76dB,
+close to the native repeat-render comparison of 33.25dB. These measurements use
+the documented RTX 4060 compatibility runtime. SageAttention uses approximate
+low-precision attention internally; this is not a claim of bitwise equivalence.
+
 ### Short schedules and quality regression (#4)
 
 The reported 12-step `1024_cascade` run shows holes before export and a reduction
@@ -192,8 +237,9 @@ cascade runs, but delta caching still applied to both shape passes and texture.
 The short-schedule default now disables both SS forecasting and SLaT caching.
 The sampler-level fallback is checked against the stock Euler sampler with the
 same noise, timestep rescaling and guidance. This is a conservative mitigation,
-not a claim that accelerated stool generation has been repaired or visually
-reproduced. See [the investigation record](docs/ISSUE-4-SHORT-SCHEDULE.md).
+not a caching speedup. The uploaded image was subsequently reproduced on real
+models; see [the GPU investigation](docs/ISSUE-4-GPU-INVESTIGATION.md) and
+[quality-profile validation](docs/ISSUE-4-QUALITY-PROFILE.md).
 
 To explicitly reproduce the previous experimental caching policy, use:
 

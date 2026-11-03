@@ -109,7 +109,7 @@ class SparseMultiHeadAttention(nn.Module):
                     q, k = self.rope(q, k)
                 qkv = qkv.replace(torch.stack([q.feats, k.feats, v.feats], dim=1))
             if self.attn_mode == "full":
-                h = sparse_scaled_dot_product_attention(qkv)
+                h = sparse_scaled_dot_product_attention(qkv, backend=getattr(self, 'attn_backend', None))
             elif self.attn_mode == "windowed":
                 h = sparse_windowed_scaled_dot_product_self_attention(
                     qkv, self.window_size, shift_window=self.shift_window
