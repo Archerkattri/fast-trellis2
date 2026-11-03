@@ -1,5 +1,10 @@
 # Issue #4: short-schedule cache safeguard
 
+**3 November update:** real pretrained inference and method comparisons are now
+complete on a Windows RTX4060 compatibility runtime. See the
+[GPU investigation](ISSUE-4-GPU-INVESTIGATION.md) for results and remaining limits.
+The original record below describes the earlier safeguard validation.
+
 ## Report and scope
 
 [Issue #4](https://github.com/Archerkattri/fast-trellis2/issues/4) includes the original
