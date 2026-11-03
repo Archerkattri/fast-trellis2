@@ -256,7 +256,7 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
         verbose: bool = True,
         tqdm_desc: str = "Sampling",
         cache_budget=None,
-        taylor_enabled: bool = True,
+        taylor_enabled: Optional[bool] = None,
         cache_stage: str = "sparse_structure",
         run_identity=None,
         **kwargs
@@ -283,8 +283,13 @@ class FlowEulerSampler_taylor(FlowEulerSampler):
             schedule = taylor_schedule(steps)
             if not np.isfinite(rescale_t) or rescale_t <= 0:
                 raise ValueError("rescale_t must be finite and positive")
+            # Twelve-step TRELLIS.2 schedules leave little room for forecast
+            # error correction (issue #4). Default to the full reference;
+            # an explicit flag or budget still opts into the Taylor baseline.
+            if taylor_enabled is None:
+                taylor_enabled = cache_budget is not None or steps > 12
             if not isinstance(taylor_enabled, bool):
-                raise TypeError("taylor_enabled must be bool")
+                raise TypeError("taylor_enabled must be bool or None")
             budget = cache_budget
             if budget is None:
                 budget = CacheBudget(
@@ -496,8 +501,26 @@ class FlowEulerSampler_faster(FlowEulerSampler):
         rescale_t: float = 1.0,
         verbose: bool = True,
         tqdm_desc: str = "Sampling",
+        faster_enabled: Optional[bool] = None,
         **kwargs
     ):
+        # The unbounded delta-cache can evaluate only 3 of 12 steps and reuse
+        # stale velocity deltas through the terminal step. Short schedules use
+        # the stock Euler path unless the caller explicitly opts into caching.
+        if faster_enabled is None:
+            faster_enabled = steps > 12
+        if not isinstance(faster_enabled, bool):
+            raise TypeError("faster_enabled must be bool or None")
+        self.free_cache()
+        if not faster_enabled:
+            ret = super().sample(
+                model, noise, cond, steps, rescale_t, verbose, tqdm_desc, **kwargs
+            )
+            ret.activated_steps = list(range(steps))
+            if verbose:
+                print("[faster-slat] Full reference steps:", ret.activated_steps)
+            return ret
+
         sample = noise
         t_seq = np.linspace(1, 0, steps + 1)
         t_seq = rescale_t * t_seq / (1 + (rescale_t - 1) * t_seq)
@@ -551,6 +574,7 @@ class FlowEulerSampler_faster(FlowEulerSampler):
 
         print("[faster-slat] Activated steps:   ", self.current['activated_steps'])
         ret.samples = sample
+        ret.activated_steps = list(self.current['activated_steps'])
         # Release the SLaT delta-cache feature tensors, the carved-coordinates
         # reference, and the stability-tracker buffers held on the sampler
         # instance so the pipeline's torch.cuda.empty_cache() can reclaim them
@@ -580,6 +604,9 @@ class FlowEulerSampler_faster(FlowEulerSampler):
         cond: Optional[Any] = None,
         **kwargs
     ):
+        if self.cache_dic is None:
+            return super().sample_once(model, x_t, t, t_prev, cond, **kwargs)
+
         should_calc = faster_cal_type(self.cache_dic, self.current, x_t.feats)
 
         if should_calc:

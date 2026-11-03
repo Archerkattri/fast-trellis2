@@ -23,8 +23,8 @@
 </div>
 
 > **This is a port, not a new method.** It re-implements the acceleration introduced by
-> **Fast-TRELLIS** (built for TRELLIS v1) on the **v2** sampler stack, so you get the same
-> speedup on TRELLIS.2. All credit for the acceleration design belongs to the Fast-TRELLIS
+> **Fast-TRELLIS** (built for TRELLIS v1) on the **v2** sampler stack. Caching is approximate;
+> speed and quality depend on the sampling schedule. All credit for the acceleration design belongs to the Fast-TRELLIS
 > authors; all credit for the base model belongs to microsoft/TRELLIS.2. For our *own*
 > acceleration method on v2 — a Hermite (HiCache) sparse-structure forecast paired with a
 > token-carved SLaT sampler — see the sibling repo **hermit-trellis2**.
@@ -61,6 +61,8 @@ base generator, and the `+` / `++` suffix is a **method choice**, not a rival pr
 
 The following card is retained as prior-run evidence from the stated benchmark setup. It is not a
 current acceptance result. Re-run on the target GPU before making a new claim.
+These historical caching results do not describe the full-evaluation short-schedule
+defaults introduced for [issue #4](https://github.com/Archerkattri/fast-trellis2/issues/4).
 
 40 Toys4K objects, `1024_cascade`, **RTX 5090**, seed 42; means over the 35 objects every
 config completed in one run. Geometry is scored on the o-voxel mesh decoder output with
@@ -145,14 +147,21 @@ test isolation limits, and external GPU gates.
 
 ## Quickstart
 
+The upstream installation targets Linux, a CUDA Toolkit (12.4 recommended), and
+an NVIDIA GPU with at least 24GB VRAM; see [the upstream prerequisites](https://github.com/microsoft/TRELLIS.2#installation).
+
 ```bash
 git clone --recursive https://github.com/Archerkattri/fast-trellis2
 cd fast-trellis2
-bash setup.sh --new-env --basic --flash-attn --o-voxel --flexgemm --nvdiffrast --nvdiffrec
+bash setup.sh --new-env --basic --flash-attn --cumesh --o-voxel --flexgemm --nvdiffrast --nvdiffrec
 ```
 
-Enable acceleration by swapping in the ported samplers; the pipeline auto-detects them and
-flips `enable_faster` on:
+Select the ported samplers and set `enable_faster=True` after replacing them so
+the pipeline supplies the spatial scores used by token carving where applicable.
+**For schedules of 12 steps or fewer, they now default to full model evaluation at
+every step.** This avoids silently applying the aggressive cache to short schedules;
+it provides no sampler-caching speedup at those defaults. Longer schedules retain
+the experimental caching defaults and are not guaranteed to preserve quality.
 
 ```python
 from trellis2.pipelines import Trellis2ImageTo3DPipeline, samplers
@@ -165,12 +174,44 @@ pipeline.shape_slat_sampler = samplers.FlowEulerGuidanceIntervalSampler_faster(
     sigma_min=pipeline.shape_slat_sampler.sigma_min)
 pipeline.tex_slat_sampler = samplers.FlowEulerGuidanceIntervalSampler_faster(
     sigma_min=pipeline.tex_slat_sampler.sigma_min)
-# pipeline.enable_faster auto-enables once the *_faster / *_taylor samplers are set.
+pipeline.enable_faster = True
 
 mesh = pipeline.run(image)[0]
 ```
 
 See `example.py` (stock) and `example_faster.py` (accelerated).
+
+### Short schedules and quality regression (#4)
+
+The reported 12-step `1024_cascade` run shows holes before export and a reduction
+from 12 to 3 texture model evaluations. The old SLaT policy can reuse its cached
+velocity delta after only three full evaluations through the final step. It has
+no validated error bound for that reuse. Token carving is disabled on fresh
+cascade runs, but delta caching still applied to both shape passes and texture.
+
+The short-schedule default now disables both SS forecasting and SLaT caching.
+The sampler-level fallback is checked against the stock Euler sampler with the
+same noise, timestep rescaling and guidance. This is a conservative mitigation,
+not a claim that accelerated stool generation has been repaired or visually
+reproduced. See [the investigation record](docs/ISSUE-4-SHORT-SCHEDULE.md).
+
+To explicitly reproduce the previous experimental caching policy, use:
+
+```python
+mesh = pipeline.run(
+    image,
+    sparse_structure_sampler_params={"steps": 12, "taylor_enabled": True},
+    shape_slat_sampler_params={"steps": 12, "faster_enabled": True},
+    tex_slat_sampler_params={"steps": 12, "faster_enabled": True},
+)[0]
+```
+
+For a full-evaluation reference at **any** schedule length, use `taylor_enabled=False`
+and `faster_enabled=False` in the corresponding dictionaries. `None` selects the
+schedule-dependent defaults. Passing an explicit SS `cache_budget` also opts into
+that budget's policy unless `taylor_enabled=False` is supplied. SLaT results expose
+`activated_steps` in both full and cached modes; entries count sampler steps,
+not separate conditional/unconditional CFG calls.
 
 <details>
 <summary><b>RTX 50-series (sm_120) note</b></summary>

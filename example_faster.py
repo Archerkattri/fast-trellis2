@@ -1,9 +1,11 @@
 """
-fast-trellis2 example: image -> 3D with Fast-TRELLIS acceleration enabled.
+fast-trellis2 example: image -> 3D with the Fast-TRELLIS samplers.
 
 This follows example.py but uses the Fast-TRELLIS cache-accelerated samplers:
 TaylorSeer on the sparse-structure (SS) final velocity, plus the easy
 delta-cache with token carving on the structured-latent (SLaT) stages.
+Schedules of 12 steps or fewer default to full evaluation (issue #4).
+See README.md for the explicit experimental caching opt-in and its quality risk.
 
 Backend selection via environment variables, set before launch:
     SPARSE_CONV_BACKEND=spconv SPCONV_ALGO=native python example_faster.py
