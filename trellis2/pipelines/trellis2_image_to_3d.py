@@ -224,6 +224,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         resolution: int,
         num_samples: int = 1,
         sampler_params: dict = {},
+        collect_scores: bool = True,
     ) -> torch.Tensor:
         """
         Sample sparse structures with the given conditioning.
@@ -233,6 +234,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             resolution (int): The resolution of the sparse structure.
             num_samples (int): The number of samples to generate.
             sampler_params (dict): Additional parameters for the sampler.
+            collect_scores (bool): Compute token-carving scores when enabled.
         """
         # Sample sparse structure latent
         flow_model = self.models['sparse_structure_flow_model']
@@ -265,7 +267,7 @@ class Trellis2ImageTo3DPipeline(Pipeline):
             decoded = torch.nn.functional.max_pool3d(decoded.float(), ratio, ratio, 0) > 0.5
         coords = torch.argwhere(decoded)[:, [0, 2, 3, 4]].int()
 
-        if not self.enable_faster:
+        if not self.enable_faster or not collect_scores:
             return coords, None
 
         # Fast-TRELLIS: per-voxel spatial high-frequency scores for token
@@ -593,9 +595,15 @@ class Trellis2ImageTo3DPipeline(Pipeline):
         cond_512 = self.get_cond([image], 512)
         cond_1024 = self.get_cond([image], 1024) if pipeline_type != '512' else None
         ss_res = {'512': 32, '1024': 64, '1024_cascade': 32, '1536_cascade': 32}[pipeline_type]
+        # A previous non-cascade run may have installed scores on this sampler.
+        # They must never leak into a different coordinate support on reuse.
+        if hasattr(self.shape_slat_sampler, 'set_coords_scores'):
+            self.shape_slat_sampler.set_coords_scores(None)
         coords, coords_scores = self.sample_sparse_structure(
             cond_512, ss_res,
-            num_samples, sparse_structure_sampler_params
+            num_samples, sparse_structure_sampler_params,
+            collect_scores=(pipeline_type in ('512', '1024')
+                            or self.enable_voxel_visualization),
         )
         # Fast-TRELLIS: inject SS-stage spatial scores into the shape SLaT
         # sampler so it can carve tokens. Only the non-cascade shape stage uses
